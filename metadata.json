@@ -1,0 +1,6 @@
+{
+  "name": "سالن زیبایی راز ملکه",
+  "description": "وبسایت لوکس و خاص سالن زیبایی راز ملکه با گالری تصاویر خیره‌کننده، سیستم رزرو آنلاین هوشمند و پنل مدیریت خدمات",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

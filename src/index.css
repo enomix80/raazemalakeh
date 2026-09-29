@@ -1,0 +1,168 @@
+@import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;700;900&family=Playfair+Display:ital,wght@0,400;0,700;1,400&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-brand-bg: #F2D3B7;
+  --color-brand-accent: #06808B;
+  --color-brand-accent-hover: #046770;
+  --color-brand-dark: #2C1E14;
+  --font-sans: "Vazirmatn", "Inter", system-ui, sans-serif;
+  --font-serif: "Playfair Display", "Vazirmatn", serif;
+  
+  --animate-fade-in-up: fade-in-up 0.6s ease-out forwards;
+  --animate-pulse-slow: pulse-slow 3s infinite ease-in-out;
+}
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse-slow {
+  0%, 100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+/* Base modifications for beautiful Persian RTL look with ambient background */
+body {
+  background: linear-gradient(135deg, #F3ECE0 0%, #EADFC9 50%, #DCBFA0 100%);
+  color: #2C1E14;
+  font-family: "Vazirmatn", "Inter", sans-serif;
+  direction: rtl;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: #06808B #EADFC9;
+  position: relative;
+}
+
+body::before {
+  content: "";
+  position: absolute;
+  top: 5%;
+  left: 10%;
+  width: 40vw;
+  height: 40vw;
+  background: radial-gradient(circle, rgba(217, 174, 131, 0.22) 0%, rgba(217, 174, 131, 0) 70%);
+  filter: blur(80px);
+  z-index: -2;
+  pointer-events: none;
+  animation: float-slow 15s infinite alternate;
+}
+
+body::after {
+  content: "";
+  position: absolute;
+  bottom: 10%;
+  right: 5%;
+  width: 50vw;
+  height: 50vw;
+  background: radial-gradient(circle, rgba(242, 211, 183, 0.28) 0%, rgba(242, 211, 183, 0) 70%);
+  filter: blur(100px);
+  z-index: -2;
+  pointer-events: none;
+  animation: float-slow 20s infinite alternate-reverse;
+}
+
+@keyframes float-slow {
+  0% { transform: translate(0, 0) scale(1); }
+  100% { transform: translate(40px, -40px) scale(1.1); }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #EADFC9;
+}
+::-webkit-scrollbar-thumb {
+  background-color: #06808B;
+  border-radius: 4px;
+}
+
+/* Modern Glassmorphic styling utilities */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.35);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 8px 32px 0 rgba(44, 30, 20, 0.04);
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.45);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  box-shadow: 
+    0 4px 20px 0 rgba(44, 30, 20, 0.03),
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.8);
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.glass-card:hover {
+  background: rgba(255, 255, 255, 0.55);
+  border-color: rgba(6, 128, 139, 0.25);
+  transform: translateY(-6px);
+  box-shadow: 
+    0 20px 40px -15px rgba(6, 128, 139, 0.12),
+    inset 0 1px 2px 0 rgba(255, 255, 255, 0.9);
+}
+
+.glass-input {
+  background: rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(6, 128, 139, 0.2);
+  transition: all 0.3s ease;
+}
+
+.glass-input:focus {
+  background: rgba(255, 255, 255, 0.85);
+  border-color: #06808B;
+  box-shadow: 0 0 0 3px rgba(6, 128, 139, 0.15);
+}
+
+.glass-btn-primary {
+  background: linear-gradient(135deg, #06808B 0%, #046770 100%);
+  color: #ffffff;
+  box-shadow: 0 4px 15px rgba(6, 128, 139, 0.25);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.glass-btn-primary:hover {
+  box-shadow: 0 8px 25px rgba(6, 128, 139, 0.4);
+  transform: translateY(-2px);
+}
+
+.glass-btn-secondary {
+  background: rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(6, 128, 139, 0.2);
+  color: #2C1E14;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.glass-btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.7);
+  border-color: #06808B;
+  color: #06808B;
+  transform: translateY(-1px);
+}
+
+.text-gradient {
+  background: linear-gradient(135deg, #2C1E14 30%, #06808B 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
