@@ -6,9 +6,9 @@
   "scripts": {
     "dev": "tsx server.ts",
     "start": "tsx server.ts",
-    "build": "vite build && cp -f dist/assets/main.js assets/main.js && cp -f dist/assets/style.css assets/style.css && cp -f dist/assets/main.js public/assets/main.js && cp -f dist/assets/style.css public/assets/style.css",
+    "build": "vite build && cp -f dist/assets/main.js assets/main.js && cp -f dist/assets/style.css assets/style.css && cp -f dist/assets/main.js public/assets/main.js && cp -f dist/assets/style.css public/assets/style.css && cp -f dist/index.html dist/404.html && rm -rf docs && cp -r dist docs && touch docs/.nojekyll && cp -f dist/index.html 404.html",
     "preview": "vite preview",
-    "clean": "rm -rf dist server.js",
+    "clean": "rm -rf dist server.js docs",
     "lint": "tsc --noEmit"
   },
   "dependencies": {

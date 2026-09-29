@@ -3,15 +3,31 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="icon" type="image/jpeg" href="/salon-images/logo.jpg" />
+    <link rel="icon" type="image/jpeg" href="./assets/branding/logo.jpg" />
     <title>سالن زیبایی راز ملکه</title>
     <meta name="description" content="وبسایت لوکس و خاص سالن زیبایی راز ملکه با گالری تصاویر خیره‌کننده، سیستم رزرو آنلاین هوشمند و پنل مدیریت خدمات" />
     <meta property="og:title" content="سالن زیبایی راز ملکه" />
     <meta property="og:description" content="وبسایت لوکس و خاص سالن زیبایی راز ملکه با گالری تصاویر خیره‌کننده، سیستم رزرو آنلاین هوشمند و پنل مدیریت خدمات" />
+    <link rel="stylesheet" href="./assets/style.css" />
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script type="module">
+      // GitHub Pages / Static Hosting Fallback
+      // If served directly without Vite dev server and root remains unmounted, load pre-bundled assets/main.js
+      window.addEventListener('DOMContentLoaded', () => {
+        setTimeout(() => {
+          const rootEl = document.getElementById('root');
+          if (rootEl && rootEl.children.length === 0) {
+            const fallbackScript = document.createElement('script');
+            fallbackScript.type = 'module';
+            fallbackScript.crossOrigin = 'anonymous';
+            fallbackScript.src = './assets/main.js';
+            document.body.appendChild(fallbackScript);
+          }
+        }, 200);
+      });
+    </script>
   </body>
 </html>
-
