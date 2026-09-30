@@ -2,6 +2,7 @@ import React from "react";
 import { Sparkles, Phone, Instagram, MapPin, Compass, ShieldCheck } from "lucide-react";
 import { SalonInfo } from "../types";
 import Logo from "./Logo";
+import { resolveImageUrl } from "../utils/imagePath";
 
 interface FooterProps {
   salonInfo: SalonInfo;
@@ -30,10 +31,13 @@ export default function Footer({ salonInfo, onAdminClick, logoUrl }: FooterProps
           <div className="md:col-span-5 space-y-6">
             <div className="flex items-center gap-3">
               <img
-                src={logoUrl || "/salon-images/logo.jpg"}
+                src={resolveImageUrl(logoUrl || salonInfo.logoUrl || "./assets/branding/logo.jpg")}
                 alt={salonInfo.name}
                 referrerPolicy="no-referrer"
                 className="w-16 h-16 rounded-2xl border border-[#06808B]/10 object-contain shadow-md bg-white p-1"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = resolveImageUrl("./assets/branding/logo.jpg");
+                }}
               />
               <div className="flex flex-col">
                 <span className="font-extrabold text-2xl text-[#2C1E14] tracking-tight font-serif">{salonInfo.name}</span>

@@ -1,6 +1,7 @@
 import React from "react";
 import { Sparkles, ArrowDown, ShieldCheck, Heart, Star, PhoneCall } from "lucide-react";
 import { SalonInfo } from "../types";
+import { resolveImageUrl } from "../utils/imagePath";
 
 interface HeroProps {
   salonInfo: SalonInfo;
@@ -8,7 +9,7 @@ interface HeroProps {
 }
 
 export default function Hero({ salonInfo, heroImageUrl }: HeroProps) {
-  const displayHeroImage = salonInfo.heroBannerUrl || heroImageUrl;
+  const displayHeroImage = resolveImageUrl(salonInfo.heroBannerUrl || heroImageUrl);
   return (
     <section className="relative min-h-[90vh] flex items-center py-16 px-4 sm:px-6 lg:px-8 overflow-hidden">
       {/* Dynamic blurred floating aesthetic elements for deep glassmorphism depth */}

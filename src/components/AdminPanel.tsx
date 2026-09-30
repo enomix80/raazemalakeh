@@ -28,12 +28,25 @@ import {
   Camera,
   Search,
   Filter,
-  Tag
+  Tag,
+  GitBranch,
+  CloudUpload,
+  Download,
+  Globe,
+  Share2
 } from "lucide-react";
 import { Service, GalleryItem, GalleryTopic, SalonInfo, AdminCredentials } from "../types";
 import { DEFAULT_ADMIN_CREDENTIALS } from "../data";
 import { compressImageFile } from "../utils/imageCompressor";
 import { saveAllAppData } from "../utils/persistentStorage";
+import { resolveImageUrl } from "../utils/imagePath";
+import {
+  getGitHubConfig,
+  saveGitHubConfig,
+  pushAppDataToGitHub,
+  commitFileToGitHub,
+  GitHubConfig
+} from "../utils/githubSync";
 
 interface AdminPanelProps {
   services: Service[];
@@ -74,9 +87,82 @@ export default function AdminPanel({
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loginError, setLoginError] = useState("");
-  const [activeTab, setActiveTab] = useState<"topics" | "assets" | "banners" | "services" | "info" | "security">("topics");
+  const [activeTab, setActiveTab] = useState<"topics" | "assets" | "banners" | "services" | "info" | "security" | "github">("topics");
   const [isScanningAssets, setIsScanningAssets] = useState(false);
   const [scanStatusMessage, setScanStatusMessage] = useState("");
+
+  // GitHub Sync State & Handlers
+  const [ghConfig, setGhConfig] = useState<GitHubConfig>(getGitHubConfig());
+  const [ghRepoInput, setGhRepoInput] = useState(ghConfig.repo || "e.salehi8082/");
+  const [ghTokenInput, setGhTokenInput] = useState(ghConfig.token || "");
+  const [ghBranchInput, setGhBranchInput] = useState(ghConfig.branch || "main");
+  const [isPushingGitHub, setIsPushingGitHub] = useState(false);
+  const [ghStatusMsg, setGhStatusMsg] = useState("");
+  const [ghErrorMsg, setGhErrorMsg] = useState("");
+
+  const handleSaveGhConfig = (e: React.FormEvent) => {
+    e.preventDefault();
+    const updated: GitHubConfig = {
+      repo: ghRepoInput.trim(),
+      token: ghTokenInput.trim(),
+      branch: ghBranchInput.trim() || "main"
+    };
+    setGhConfig(updated);
+    saveGitHubConfig(updated);
+    setGhStatusMsg("تنظیمات اتصال به گیت‌هاب با موفقیت در سیستم شما ذخیره شد!");
+    setGhErrorMsg("");
+  };
+
+  const handlePushToGitHub = async () => {
+    if (!ghConfig.repo || !ghConfig.token) {
+      setActiveTab("github");
+      alert("لطفاً ابتدا نام ریپازیتوری و توکن گیت‌هاب را در تب «همگام‌سازی با گیت‌هاب» وارد فرمایید.");
+      return;
+    }
+
+    setIsPushingGitHub(true);
+    setGhStatusMsg("در حال ذخیره و کامیت کلیه تصاویر و اطلاعات در ریپازیتوری گیت‌هاب...");
+    setGhErrorMsg("");
+
+    const dataToSave = {
+      salonInfo,
+      topics,
+      gallery,
+      services,
+      updatedAt: new Date().toISOString()
+    };
+
+    const res = await pushAppDataToGitHub(dataToSave);
+    setIsPushingGitHub(false);
+
+    if (res.success) {
+      setGhStatusMsg(res.message);
+      alert("✅ کلیه تصاویر و اطلاعات سالن با موفقیت مستقیماً در ریپازیتوری گیت‌هاب ثبت شدند! تمامی افرادی که با لینک وارد سایت شوند، آخرین تغییرات را مشاهده خواهند کرد.");
+    } else {
+      setGhErrorMsg(res.message);
+      alert("خطا در ارسال به گیت‌هاب: " + res.message);
+    }
+  };
+
+  const handleDownloadAppDataJson = () => {
+    const dataToSave = {
+      salonInfo,
+      topics,
+      gallery,
+      services,
+      updatedAt: new Date().toISOString()
+    };
+    const jsonStr = JSON.stringify(dataToSave, null, 2);
+    const blob = new Blob([jsonStr], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "app-data.json";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
 
   // Scan & sync assets from folders
   const handleScanAssets = async () => {
@@ -943,12 +1029,12 @@ export default function AdminPanel({
               title={isAdminLoggedIn ? "برای تغییر مستقیم لوگوی وبسایت کلیک کنید" : undefined}
             >
               <img
-                src={salonInfo.topSmallBannerUrl || salonInfo.logoUrl || "/salon-images/logo.jpg"}
+                src={resolveImageUrl(salonInfo.topSmallBannerUrl || salonInfo.logoUrl || "./assets/branding/logo.jpg")}
                 alt="Logo"
                 referrerPolicy="no-referrer"
                 className="w-full h-full object-contain rounded-xl bg-white p-0.5 group-hover:opacity-80 transition-opacity"
                 onError={(e) => {
-                  (e.target as HTMLImageElement).src = "/salon-images/logo.jpg";
+                  (e.target as HTMLImageElement).src = resolveImageUrl("./assets/branding/logo.jpg");
                 }}
               />
               {isAdminLoggedIn && (
@@ -994,8 +1080,8 @@ export default function AdminPanel({
                   type="button"
                   onClick={handleMasterFinalSave}
                   disabled={isSavingFinal}
-                  className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 active:scale-95 text-white px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-2xl text-xs sm:text-sm font-black shadow-lg flex items-center gap-2 cursor-pointer transition-all border border-emerald-300/40"
-                  title="ثبت نهایی و ماندگاری قطعی کلیه تغییرات بر روی سایت (حفظ با رفرش و بستن سایت)"
+                  className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 active:scale-95 text-white px-3 sm:px-4 py-2 sm:py-2.5 rounded-2xl text-xs sm:text-sm font-black shadow-lg flex items-center gap-1.5 cursor-pointer transition-all border border-emerald-300/40"
+                  title="ثبت نهایی و ماندگاری قطعی کلیه تغییرات بر روی مرورگر"
                 >
                   {isSavingFinal ? (
                     <>
@@ -1005,10 +1091,31 @@ export default function AdminPanel({
                   ) : (
                     <>
                       <Save className="w-4 h-4 text-emerald-200" />
-                      <span>ثبت نهایی تغییرات</span>
+                      <span>ثبت تغییرات</span>
                       {hasUnsavedChanges && (
                         <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
                       )}
+                    </>
+                  )}
+                </button>
+
+                {/* Push to GitHub Button */}
+                <button
+                  type="button"
+                  onClick={handlePushToGitHub}
+                  disabled={isPushingGitHub}
+                  className="bg-gradient-to-r from-purple-700 to-indigo-700 hover:from-purple-600 hover:to-indigo-600 active:scale-95 text-white px-3 sm:px-4 py-2 sm:py-2.5 rounded-2xl text-xs sm:text-sm font-black shadow-lg flex items-center gap-1.5 cursor-pointer transition-all border border-purple-400/40"
+                  title="ذخیره مستقیم همه تغییرات و تصاویر در مخزن گیت‌هاب برای همه کاربران"
+                >
+                  {isPushingGitHub ? (
+                    <>
+                      <Sparkles className="w-4 h-4 animate-spin text-purple-200" />
+                      <span className="hidden sm:inline">در حال ارسال...</span>
+                    </>
+                  ) : (
+                    <>
+                      <GitBranch className="w-4 h-4 text-purple-200" />
+                      <span>ارسال به گیت‌هاب</span>
                     </>
                   )}
                 </button>
@@ -1166,6 +1273,18 @@ export default function AdminPanel({
                 <KeyRound className="w-4 h-4 shrink-0" />
                 <span>امنیت و رمز عبور</span>
               </button>
+
+              <button
+                onClick={() => setActiveTab("github")}
+                className={`w-full text-right px-4 py-3 rounded-2xl text-xs sm:text-sm font-black transition-all flex items-center gap-2.5 whitespace-nowrap cursor-pointer border ${
+                  activeTab === "github"
+                    ? "bg-gradient-to-r from-purple-700 to-indigo-700 text-white border-purple-500 shadow-md scale-102"
+                    : "text-purple-900 bg-purple-50/70 hover:bg-purple-100/90 border-purple-200/80"
+                }`}
+              >
+                <GitBranch className="w-4 h-4 shrink-0 text-purple-600" />
+                <span className="font-extrabold">همگام‌سازی گیت‌هاب</span>
+              </button>
             </div>
 
             {/* Main Content Area */}
@@ -1229,7 +1348,7 @@ export default function AdminPanel({
                             {currentTopic.coverImage ? (
                               <>
                                 <img
-                                  src={currentTopic.coverImage}
+                                  src={resolveImageUrl(currentTopic.coverImage)}
                                   alt={currentTopic.title}
                                   className="w-full h-full object-cover"
                                 />
@@ -1619,7 +1738,7 @@ export default function AdminPanel({
                             <div className="relative group bg-white p-2 rounded-2xl border-2 border-[#06808B] shadow-xs flex flex-col justify-between">
                               <div className="aspect-square rounded-xl overflow-hidden bg-gray-100 relative">
                                 <img
-                                  src={currentTopic.coverImage}
+                                  src={resolveImageUrl(currentTopic.coverImage)}
                                   alt={currentTopic.title}
                                   className="w-full h-full object-cover"
                                 />
@@ -1695,9 +1814,12 @@ export default function AdminPanel({
                             >
                               <div className="aspect-square rounded-xl overflow-hidden bg-gray-100 relative">
                                 <img
-                                  src={photo.image}
+                                  src={resolveImageUrl(photo.image)}
                                   alt={photo.title}
                                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                  onError={(e) => {
+                                    (e.target as HTMLImageElement).src = resolveImageUrl("./assets/branding/logo.jpg");
+                                  }}
                                 />
                                 <div className="absolute top-1.5 left-1.5 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                   <button
@@ -2761,12 +2883,12 @@ export default function AdminPanel({
                               {/* Thumbnail Container with Quick-Upload Camera Overlay */}
                               <div className="relative w-20 h-20 rounded-2xl overflow-hidden shrink-0 border border-[#06808B]/20 bg-gray-100 shadow-xs group">
                                 <img
-                                  src={item.image}
+                                  src={resolveImageUrl(item.image)}
                                   alt={item.title}
                                   referrerPolicy="no-referrer"
                                   className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                                   onError={(e) => {
-                                    (e.target as HTMLImageElement).src = "/assets/services/lashes.jpg";
+                                    (e.target as HTMLImageElement).src = resolveImageUrl("./assets/services/lashes.jpg");
                                   }}
                                 />
                                 <input
@@ -3430,6 +3552,176 @@ export default function AdminPanel({
                       </button>
                     </div>
                   </form>
+                </div>
+              )}
+
+              {/* TAB 7: GITHUB LIVE CLOUD SYNC & REPOSITORY INTEGRATION */}
+              {activeTab === "github" && (
+                <div className="space-y-6 max-w-2xl mx-auto">
+                  <div className="space-y-1">
+                    <div className="inline-flex items-center gap-1.5 text-purple-700 bg-purple-100 px-3.5 py-1 rounded-full text-xs font-black">
+                      <GitBranch className="w-3.5 h-3.5" />
+                      <span>اتصال مستقیم و ذخیره دائمی در مخزن گیت‌هاب</span>
+                    </div>
+                    <h3 className="font-extrabold text-xl text-[#2C1E14] font-serif">
+                      همگام‌سازی اطلاعات و تصاویر با گیت‌هاب
+                    </h3>
+                    <p className="text-xs text-gray-600 font-semibold leading-relaxed">
+                      با اتصال به گیت‌هاب، هر تصویری که آپلود کنید و هر تغییری که در مشخصات یا خدمات سالن دهید، مستقیماً در ریپازیتوری گیت‌هاب کامیت شده و تمام افرادی که از طریق لینک وارد سایت می‌شوند نیز آخرین تغییرات را مشاهده خواهند کرد.
+                    </p>
+                  </div>
+
+                  {/* Status Alerts */}
+                  {ghStatusMsg && (
+                    <div className="p-4 bg-emerald-50 border border-emerald-300 rounded-2xl text-xs text-emerald-800 font-bold flex items-start gap-2.5">
+                      <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                      <div className="space-y-1">
+                        <p>{ghStatusMsg}</p>
+                        <p className="text-[11px] text-emerald-700 font-normal">
+                          نکته: پس از ارسال به گیت‌هاب، حدود ۱ تا ۲ دقیقه طول می‌کشد تا GitHub Pages نسخه جدید را بازنشر کند.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {ghErrorMsg && (
+                    <div className="p-4 bg-rose-50 border border-rose-300 rounded-2xl text-xs text-rose-800 font-bold flex items-start gap-2.5">
+                      <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                      <span>{ghErrorMsg}</span>
+                    </div>
+                  )}
+
+                  {/* Primary Action: Direct Push to GitHub */}
+                  <div className="bg-gradient-to-br from-purple-50 via-white to-indigo-50 border-2 border-purple-300/80 rounded-3xl p-6 shadow-sm space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-purple-900 font-black text-sm">
+                        <CloudUpload className="w-5 h-5 text-purple-600" />
+                        <span>ارسال و ذخیره مستقیم همه تغییرات در گیت‌هاب</span>
+                      </div>
+                      <span className="text-[11px] bg-purple-200/80 text-purple-900 font-extrabold px-3 py-1 rounded-full">
+                        نمایش برای همه کاربران
+                      </span>
+                    </div>
+
+                    <p className="text-xs text-gray-600 leading-relaxed font-medium">
+                      با کلیک روی دکمه زیر، فایل داده‌های سالن به همراه کلیه عکس‌های آپلود شده به صورت خودکار در ریپازیتوری گیت‌هاب ثبت شده و برای تمامی مخاطبان سایت در دسترس قرار می‌گیرد.
+                    </p>
+
+                    <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                      <button
+                        type="button"
+                        onClick={handlePushToGitHub}
+                        disabled={isPushingGitHub}
+                        className="flex-1 bg-gradient-to-r from-purple-700 to-indigo-700 hover:from-purple-600 hover:to-indigo-600 active:scale-95 text-white py-3.5 px-6 rounded-2xl text-xs sm:text-sm font-black shadow-lg flex items-center justify-center gap-2 cursor-pointer transition-all border border-purple-400"
+                      >
+                        {isPushingGitHub ? (
+                          <>
+                            <Sparkles className="w-5 h-5 animate-spin text-purple-200" />
+                            <span>در حال ذخیره و انتشار در گیت‌هاب...</span>
+                          </>
+                        ) : (
+                          <>
+                            <GitBranch className="w-5 h-5 text-purple-200" />
+                            <span>ثبت و انتشار همه تغییرات در گیت‌هاب</span>
+                          </>
+                        )}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleDownloadAppDataJson}
+                        className="bg-white hover:bg-gray-50 border border-purple-200 text-purple-900 py-3.5 px-5 rounded-2xl text-xs font-black flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
+                        title="دانلود مستقیم فایل app-data.json بر روی دستگاه خود"
+                      >
+                        <Download className="w-4 h-4 text-purple-600" />
+                        <span>دانلود فایل داده‌ها</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* GitHub Repository & Token Configuration Form */}
+                  <div className="bg-white/80 border border-[#06808B]/20 rounded-3xl p-6 shadow-sm space-y-4">
+                    <h4 className="font-black text-sm text-[#2C1E14] flex items-center gap-2">
+                      <Settings className="w-4 h-4 text-[#06808B]" />
+                      <span>تنظیمات مخزن و توکن گیت‌هاب</span>
+                    </h4>
+
+                    <form onSubmit={handleSaveGhConfig} className="space-y-4">
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold text-gray-700">
+                          نام کاربری و ریپازیتوری گیت‌هاب (Owner/Repository) *
+                        </label>
+                        <input
+                          type="text"
+                          dir="ltr"
+                          value={ghRepoInput}
+                          onChange={(e) => setGhRepoInput(e.target.value)}
+                          placeholder="e.g. e.salehi8082/my-salon-repo"
+                          className="w-full px-4 py-3 rounded-2xl bg-white border border-[#06808B]/20 text-sm font-mono focus:ring-2 focus:ring-[#06808B]/20 text-left"
+                          required
+                        />
+                        <p className="text-[10px] text-gray-500 font-medium">
+                          آدرس ریپازیتوری شما در گیت‌هاب؛ مانند: <code>e.salehi8082/نام-مخزن</code>
+                        </p>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold text-gray-700">
+                          توکن دسترسی شخصی گیت‌هاب (Personal Access Token) *
+                        </label>
+                        <input
+                          type="password"
+                          dir="ltr"
+                          value={ghTokenInput}
+                          onChange={(e) => setGhTokenInput(e.target.value)}
+                          placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+                          className="w-full px-4 py-3 rounded-2xl bg-white border border-[#06808B]/20 text-sm font-mono focus:ring-2 focus:ring-[#06808B]/20 text-left"
+                          required
+                        />
+                        <p className="text-[10px] text-gray-500 font-medium">
+                          این توکن فقط روی مرورگر خود شما به صورت ایمن ذخیره می‌شود و برای ارسال تغییرات به گیت‌هاب لازم است.
+                        </p>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold text-gray-700">
+                          شاخه مورد نظر (Branch)
+                        </label>
+                        <input
+                          type="text"
+                          dir="ltr"
+                          value={ghBranchInput}
+                          onChange={(e) => setGhBranchInput(e.target.value)}
+                          placeholder="main"
+                          className="w-full px-4 py-3 rounded-2xl bg-white border border-[#06808B]/20 text-sm font-mono focus:ring-2 focus:ring-[#06808B]/20 text-left"
+                        />
+                      </div>
+
+                      <div className="pt-2">
+                        <button
+                          type="submit"
+                          className="bg-[#06808B] hover:bg-[#046770] text-white px-6 py-3 rounded-2xl text-xs font-black flex items-center gap-2 shadow-md cursor-pointer transition-all active:scale-95"
+                        >
+                          <Save className="w-4 h-4" />
+                          <span>ذخیره تنظیمات گیت‌هاب</span>
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+
+                  {/* Step-by-step Guide for Creating a Token */}
+                  <div className="bg-amber-50/80 border border-amber-200 rounded-3xl p-5 text-xs text-amber-900 space-y-2.5">
+                    <h5 className="font-black text-amber-950 flex items-center gap-1.5">
+                      <Sparkles className="w-4 h-4 text-amber-600" />
+                      <span>راهنمای سریع ۱ دقیقه‌ای ساخت توکن گیت‌هاب (Personal Access Token):</span>
+                    </h5>
+                    <ol className="list-decimal list-inside space-y-1.5 font-medium leading-relaxed">
+                      <li>در گیت‌هاب، روی عکس پروفایل بالا کلیک کرده و وارد <strong>Settings</strong> شوید.</li>
+                      <li>در پایین منوی سمت چپ، روی <strong>Developer settings</strong> و سپس <strong>Personal access tokens</strong> ➔ <strong>Tokens (classic)</strong> بزنید.</li>
+                      <li>دکمه <strong>Generate new token (classic)</strong> را بزنید، یک نام بگذارید، تیک گزینه <strong>repo</strong> (دسترسی کامل به مخزن) را فعال کنید و دکمه سبز رنگ Generate را بزنید.</li>
+                      <li>توکن تولید شده را کپی کرده و در کادر بالا قرار دهید و دکمه «ذخیره تنظیمات» را بزنید.</li>
+                    </ol>
+                  </div>
                 </div>
               )}
 

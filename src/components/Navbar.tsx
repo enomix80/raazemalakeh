@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Sparkles, Phone, Lock, Menu, X, Instagram } from "lucide-react";
 import { SalonInfo } from "../types";
 import Logo from "./Logo";
+import { resolveImageUrl } from "../utils/imagePath";
 
 interface NavbarProps {
   salonInfo: SalonInfo;
@@ -29,10 +30,13 @@ export default function Navbar({
           <div className="flex items-center gap-3">
             <a href="#" className="flex items-center gap-3 group">
               <img
-                src={logoUrl || "/salon-images/logo.jpg"}
+                src={resolveImageUrl(logoUrl || salonInfo.logoUrl || "./assets/branding/logo.jpg")}
                 alt={salonInfo.name}
                 referrerPolicy="no-referrer"
                 className="w-14 h-14 rounded-2xl border border-[#06808B]/10 object-contain shadow-md group-hover:scale-105 transition-transform duration-500 bg-white p-1"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = resolveImageUrl("./assets/branding/logo.jpg");
+                }}
               />
               <div className="flex flex-col text-right">
                 <span className="font-extrabold text-2xl text-[#2C1E14] tracking-tight group-hover:text-[#06808B] transition-colors font-serif">

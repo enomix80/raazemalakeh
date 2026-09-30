@@ -9,6 +9,7 @@
 
 import { SalonInfo, GalleryItem, GalleryTopic, Service, AdminCredentials } from "../types";
 import { SALON_INFO, INITIAL_GALLERY_TOPICS, INITIAL_GALLERY, INITIAL_SERVICES } from "../data";
+import { resolveImageUrl } from "./imagePath";
 
 const DB_NAME = "QueenSalonStorageDB";
 const DB_VERSION = 2;
@@ -188,7 +189,7 @@ export async function loadInitialAppData(): Promise<CompleteAppData> {
     // ignore
   }
 
-  // 2. Fetch authoritative state from Server (/api/app-data)
+  // 2. Fetch authoritative state from Server (/api/app-data) or GitHub Static/Raw
   let serverData: Partial<CompleteAppData> | null = null;
   try {
     const res = await fetch("/api/app-data");
@@ -199,33 +200,94 @@ export async function loadInitialAppData(): Promise<CompleteAppData> {
       }
     }
   } catch (err) {
-    console.warn("Could not reach backend API, trying IndexedDB:", err);
+    console.warn("Could not reach backend API, checking GitHub / static files:", err);
   }
 
-  // 3. If server didn't provide data, try IndexedDB
+  // 2.1 If backend API didn't respond (e.g. running on GitHub Pages), try fetching app-data.json
+  if (!serverData) {
+    try {
+      const timestamp = Date.now();
+      const candidates = [
+        `./data/app-data.json?t=${timestamp}`,
+        `./app-data.json?t=${timestamp}`
+      ];
+
+      // Auto-detect GitHub Pages repository from hostname if hosted on github.io
+      if (typeof window !== "undefined" && window.location.hostname.endsWith(".github.io")) {
+        const user = window.location.hostname.replace(".github.io", "");
+        const pathSegments = window.location.pathname.split("/").filter(Boolean);
+        const repo = pathSegments[0] || "";
+        if (user && repo) {
+          candidates.push(
+            `https://raw.githubusercontent.com/${user}/${repo}/main/data/app-data.json?t=${timestamp}`,
+            `https://raw.githubusercontent.com/${user}/${repo}/master/data/app-data.json?t=${timestamp}`
+          );
+        }
+      }
+
+      // Also check saved GitHub config
+      const ghConfigStr = localStorage.getItem("queen_salon_github_config");
+      if (ghConfigStr) {
+        try {
+          const ghConfig = JSON.parse(ghConfigStr);
+          if (ghConfig.repo) {
+            const cleanRepo = ghConfig.repo.replace(/^https?:\/\/github\.com\//, "").replace(/\.git$/, "").trim();
+            const branch = ghConfig.branch || "main";
+            candidates.push(`https://raw.githubusercontent.com/${cleanRepo}/${branch}/data/app-data.json?t=${timestamp}`);
+          }
+        } catch {}
+      }
+
+      for (const url of candidates) {
+        try {
+          const res = await fetch(url, { cache: "no-store" });
+          if (res.ok) {
+            const json = await res.json();
+            if (json && (json.salonInfo || json.gallery || json.services || json.topics)) {
+              serverData = json;
+              break;
+            }
+          }
+        } catch {}
+      }
+    } catch (e) {
+      console.warn("Error fetching remote GitHub/static app-data:", e);
+    }
+  }
+
+  // 3. If server or remote GitHub didn't provide data, try IndexedDB
   let idbSalonInfo = serverData?.salonInfo || (await idbGet<SalonInfo>(KEYS.SALON_INFO)) || loadedFromLocal.salonInfo;
   let idbTopics = serverData?.topics || (await idbGet<GalleryTopic[]>(KEYS.TOPICS)) || loadedFromLocal.topics;
   let idbGallery = serverData?.gallery || (await idbGet<GalleryItem[]>(KEYS.GALLERY)) || loadedFromLocal.gallery;
   let idbServices = serverData?.services || (await idbGet<Service[]>(KEYS.SERVICES)) || loadedFromLocal.services;
 
-  // 4. Merge safely with defaults without erasing user edits
+  // 4. Merge safely with defaults without erasing user edits, and normalize image paths
   const finalSalonInfo: SalonInfo = {
     ...SALON_INFO,
     ...(idbSalonInfo || {}),
-    backgroundBannerUrl: idbSalonInfo?.backgroundBannerUrl ?? SALON_INFO.backgroundBannerUrl ?? "",
-    topSmallBannerUrl: idbSalonInfo?.topSmallBannerUrl ?? (idbSalonInfo?.logoUrl ?? ""),
-    heroBannerUrl: idbSalonInfo?.heroBannerUrl ?? SALON_INFO.heroBannerUrl ?? "",
-    logoUrl: idbSalonInfo?.logoUrl ?? (idbSalonInfo?.topSmallBannerUrl ?? "")
+    backgroundBannerUrl: resolveImageUrl(idbSalonInfo?.backgroundBannerUrl ?? SALON_INFO.backgroundBannerUrl),
+    topSmallBannerUrl: resolveImageUrl(idbSalonInfo?.topSmallBannerUrl ?? (idbSalonInfo?.logoUrl ?? SALON_INFO.topSmallBannerUrl)),
+    heroBannerUrl: resolveImageUrl(idbSalonInfo?.heroBannerUrl ?? SALON_INFO.heroBannerUrl),
+    logoUrl: resolveImageUrl(idbSalonInfo?.logoUrl ?? (idbSalonInfo?.topSmallBannerUrl ?? SALON_INFO.logoUrl))
   };
 
-  const finalTopics: GalleryTopic[] =
-    idbTopics && idbTopics.length > 0 ? idbTopics : INITIAL_GALLERY_TOPICS;
+  const rawTopics = idbTopics && idbTopics.length > 0 ? idbTopics : INITIAL_GALLERY_TOPICS;
+  const finalTopics: GalleryTopic[] = rawTopics.map((t) => ({
+    ...t,
+    coverImage: resolveImageUrl(t.coverImage)
+  }));
 
-  const finalGallery: GalleryItem[] =
-    idbGallery && Array.isArray(idbGallery) ? idbGallery : INITIAL_GALLERY;
+  const rawGallery = idbGallery && Array.isArray(idbGallery) ? idbGallery : INITIAL_GALLERY;
+  const finalGallery: GalleryItem[] = rawGallery.map((g) => ({
+    ...g,
+    image: resolveImageUrl(g.image)
+  }));
 
-  const finalServices: Service[] =
-    idbServices && idbServices.length > 0 ? idbServices : INITIAL_SERVICES;
+  const rawServices = idbServices && idbServices.length > 0 ? idbServices : INITIAL_SERVICES;
+  const finalServices: Service[] = rawServices.map((s) => ({
+    ...s,
+    image: resolveImageUrl(s.image)
+  }));
 
   const result: CompleteAppData = {
     salonInfo: finalSalonInfo,

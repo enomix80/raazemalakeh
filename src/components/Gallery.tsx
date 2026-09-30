@@ -18,6 +18,7 @@ import {
   Phone
 } from "lucide-react";
 import { GalleryTopic, GalleryItem, SalonInfo } from "../types";
+import { resolveImageUrl } from "../utils/imagePath";
 
 interface GalleryProps {
   topics: GalleryTopic[];
@@ -106,7 +107,7 @@ export default function Gallery({
     if (activeTopic.coverImage && activeTopic.coverImage.trim() !== "") {
       list.push({
         id: `cover-${activeTopic.id}`,
-        image: activeTopic.coverImage,
+        image: resolveImageUrl(activeTopic.coverImage),
         title: activeTopic.title,
         description: activeTopic.description,
         isCover: true
@@ -116,7 +117,7 @@ export default function Gallery({
     samples.forEach((s) => {
       list.push({
         id: s.id,
-        image: s.image,
+        image: resolveImageUrl(s.image),
         title: s.title,
         description: s.description || activeTopic.description,
         isCover: false

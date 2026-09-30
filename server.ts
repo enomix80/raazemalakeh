@@ -99,7 +99,7 @@ function scanAssetsFolder() {
   for (const f of brandingFiles) {
     if (!isImageFile(f)) continue;
     const lower = f.toLowerCase();
-    const assetUrl = `/assets/branding/${f}`;
+    const assetUrl = `./assets/branding/${f}`;
     if (lower.startsWith("logo")) {
       currentSalonInfo.logoUrl = assetUrl;
       currentSalonInfo.topSmallBannerUrl = assetUrl;
@@ -125,7 +125,7 @@ function scanAssetsFolder() {
 
     const topicIndex = currentTopics.findIndex((t) => t.id === meta.id);
     if (thumbFile) {
-      const coverPath = `/assets/${folderName}/${thumbFile}`;
+      const coverPath = `./assets/${folderName}/${thumbFile}`;
       if (topicIndex >= 0) {
         // If topic has no cover or was default, assign the thumbFile
         if (!currentTopics[topicIndex].coverImage) {
@@ -146,7 +146,7 @@ function scanAssetsFolder() {
     // Process other images as gallery items
     const sampleFiles = imageFiles.filter((f) => f !== thumbFile);
     sampleFiles.forEach((f, idx) => {
-      const itemUrl = `/assets/${folderName}/${f}`;
+      const itemUrl = `./assets/${folderName}/${f}`;
       const existing = updatedGallery.find((g) => g.image === itemUrl);
       if (!existing) {
         const num = path.basename(f, path.extname(f));
@@ -189,7 +189,7 @@ function scanAssetsFolder() {
   serviceImageFiles.forEach((file) => {
     const base = path.basename(file, path.extname(file)).toLowerCase();
     const serviceId = SERVICE_FILE_MAP[base];
-    const assetUrl = `/assets/services/${file}`;
+    const assetUrl = `./assets/services/${file}`;
     if (serviceId) {
       const idx = currentServices.findIndex((s) => s.id === serviceId);
       if (idx >= 0) {
@@ -226,7 +226,7 @@ app.post("/api/upload-image", (req, res) => {
 
     // Determine target directory
     let targetDir = UPLOADS_DIR;
-    let targetUrlPrefix = "/uploads";
+    let targetUrlPrefix = "./uploads";
 
     if (folder && typeof folder === "string") {
       const sanitizedFolder = folder.replace(/[^a-zA-Z0-9_-]/g, "");
@@ -234,7 +234,7 @@ app.post("/api/upload-image", (req, res) => {
         const potentialAssetDir = path.resolve(__dirname, "public/assets", sanitizedFolder);
         if (fs.existsSync(potentialAssetDir)) {
           targetDir = potentialAssetDir;
-          targetUrlPrefix = `/assets/${sanitizedFolder}`;
+          targetUrlPrefix = `./assets/${sanitizedFolder}`;
         }
       }
     }

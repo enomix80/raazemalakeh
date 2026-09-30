@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Sparkles, Phone, Search } from "lucide-react";
 import { Service } from "../types";
+import { resolveImageUrl } from "../utils/imagePath";
 
 interface ServicesProps {
   services: Service[];
@@ -96,12 +97,12 @@ export default function Services({
                 {/* Service Image Container */}
                 <div className="relative h-60 overflow-hidden rounded-t-[2.2rem]">
                   <img
-                    src={service.image}
+                    src={resolveImageUrl(service.image)}
                     alt={service.title}
                     referrerPolicy="no-referrer"
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
                     onError={(e) => {
-                      (e.target as HTMLImageElement).src = "/assets/services/lashes.jpg";
+                      (e.target as HTMLImageElement).src = resolveImageUrl("./assets/services/lashes.jpg");
                     }}
                   />
                   {/* Category Tag on Image */}
