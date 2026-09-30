@@ -265,10 +265,10 @@ export async function loadInitialAppData(): Promise<CompleteAppData> {
   const finalSalonInfo: SalonInfo = {
     ...SALON_INFO,
     ...(idbSalonInfo || {}),
-    backgroundBannerUrl: resolveImageUrl(idbSalonInfo?.backgroundBannerUrl ?? SALON_INFO.backgroundBannerUrl),
-    topSmallBannerUrl: resolveImageUrl(idbSalonInfo?.topSmallBannerUrl ?? (idbSalonInfo?.logoUrl ?? SALON_INFO.topSmallBannerUrl)),
-    heroBannerUrl: resolveImageUrl(idbSalonInfo?.heroBannerUrl ?? SALON_INFO.heroBannerUrl),
-    logoUrl: resolveImageUrl(idbSalonInfo?.logoUrl ?? (idbSalonInfo?.topSmallBannerUrl ?? SALON_INFO.logoUrl))
+    backgroundBannerUrl: resolveImageUrl(idbSalonInfo?.backgroundBannerUrl || SALON_INFO.backgroundBannerUrl || "./assets/branding/top_banner.jpg"),
+    topSmallBannerUrl: resolveImageUrl(idbSalonInfo?.topSmallBannerUrl || idbSalonInfo?.logoUrl || SALON_INFO.topSmallBannerUrl || "./assets/branding/logo.jpg"),
+    heroBannerUrl: resolveImageUrl(idbSalonInfo?.heroBannerUrl || SALON_INFO.heroBannerUrl || "./assets/branding/hero.jpg"),
+    logoUrl: resolveImageUrl(idbSalonInfo?.logoUrl || idbSalonInfo?.topSmallBannerUrl || SALON_INFO.logoUrl || "./assets/branding/logo.jpg")
   };
 
   const rawTopics = idbTopics && idbTopics.length > 0 ? idbTopics : INITIAL_GALLERY_TOPICS;

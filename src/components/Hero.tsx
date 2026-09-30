@@ -74,6 +74,9 @@ export default function Hero({ salonInfo, heroImageUrl }: HeroProps) {
                 alt="نمای لوکس سالن راز ملکه"
                 referrerPolicy="no-referrer"
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 opacity-90"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = resolveImageUrl("./assets/branding/hero.jpg");
+                }}
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex flex-col justify-end p-6 text-right">
                 <div className="flex items-center gap-1 text-amber-400 mb-1">

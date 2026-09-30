@@ -7,6 +7,7 @@ import AdminPanel from "./components/AdminPanel";
 import Footer from "./components/Footer";
 import { INITIAL_SERVICES, INITIAL_GALLERY, INITIAL_GALLERY_TOPICS, SALON_INFO } from "./data";
 import { Service, GalleryItem, GalleryTopic, SalonInfo } from "./types";
+import { resolveImageUrl } from "./utils/imagePath";
 import {
   loadInitialAppData,
   saveSalonInfo,
@@ -19,9 +20,10 @@ import {
 import logoImg from "./assets/images/queen_salon_logo_1790400000616.jpg";
 import heroImg from "./assets/images/queen_salon_hero_1784275349018.jpg";
 
-// Dedicated, easily-replaceable static assets in src/assets/images/
-const LOGO_IMAGE_PATH = logoImg;
-const HERO_IMAGE_PATH = heroImg;
+// Dedicated branding image paths
+const LOGO_IMAGE_PATH = "./assets/branding/logo.jpg";
+const HERO_IMAGE_PATH = "./assets/branding/hero.jpg";
+const TOP_BANNER_IMAGE_PATH = "./assets/branding/top_banner.jpg";
 
 export default function App() {
   const [services, setServices] = useState<Service[]>(INITIAL_SERVICES);
@@ -134,9 +136,9 @@ export default function App() {
     alert("شما از پنل مدیریت خارج شدید.");
   };
 
-  const effectiveLogoUrl = salonInfo.topSmallBannerUrl || salonInfo.logoUrl || LOGO_IMAGE_PATH;
-  const effectiveHeroBanner = salonInfo.heroBannerUrl || HERO_IMAGE_PATH;
-  const effectiveBgBanner = salonInfo.backgroundBannerUrl || heroImg;
+  const effectiveLogoUrl = resolveImageUrl(salonInfo.topSmallBannerUrl || salonInfo.logoUrl || LOGO_IMAGE_PATH);
+  const effectiveHeroBanner = resolveImageUrl(salonInfo.heroBannerUrl || HERO_IMAGE_PATH);
+  const effectiveBgBanner = resolveImageUrl(salonInfo.backgroundBannerUrl || TOP_BANNER_IMAGE_PATH);
 
   return (
     <div className="min-h-screen bg-transparent flex flex-col selection:bg-[#06808B] selection:text-white">
@@ -146,6 +148,9 @@ export default function App() {
           src={effectiveBgBanner}
           alt="Queen Salon Interior Banner Header"
           className="w-full h-full object-cover opacity-45 filter brightness-105 contrast-105 transition-all duration-700"
+          onError={(e) => {
+            (e.target as HTMLImageElement).src = resolveImageUrl(TOP_BANNER_IMAGE_PATH);
+          }}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-[#F3ECE0] via-[#F3ECE0]/30 to-transparent" />
         
@@ -157,6 +162,9 @@ export default function App() {
               src={effectiveLogoUrl}
               alt="نشان بالای سالن راز ملکه"
               className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl object-contain bg-white p-0.5 border border-[#06808B]/10 shadow-xs"
+              onError={(e) => {
+                (e.target as HTMLImageElement).src = resolveImageUrl(LOGO_IMAGE_PATH);
+              }}
             />
             <div className="flex flex-col text-right">
               <span className="text-xs sm:text-sm font-black text-[#2C1E14] font-serif tracking-tight">

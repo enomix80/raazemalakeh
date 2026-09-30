@@ -322,7 +322,7 @@ export const SALON_INFO: SalonInfo = {
   address: "اصفهان، خیابان میرزاطاهر شرقی، نبش کوچه ۲۸",
   mapLink: "https://www.google.com/maps/search/?api=1&query=اصفهان+خیابان+میرزاطاهر+شرقی+نبش+کوچه+۲۸",
   logoUrl: "./assets/branding/logo.jpg",
-  backgroundBannerUrl: "",
+  backgroundBannerUrl: "./assets/branding/top_banner.jpg",
   topSmallBannerUrl: "./assets/branding/logo.jpg",
   heroBannerUrl: "./assets/branding/hero.jpg"
 };
