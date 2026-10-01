@@ -14,7 +14,8 @@ import {
   saveTopics,
   saveGallery,
   saveServices,
-  saveAllAppData
+  saveAllAppData,
+  subscribeToRealtimeAppData
 } from "./utils/persistentStorage";
 
 import logoImg from "./assets/images/queen_salon_logo_1790400000616.jpg";
@@ -52,7 +53,7 @@ export default function App() {
       // ignore
     }
 
-    // 2. High-capacity IndexedDB load (prevents quota issues for high-res images and banners)
+    // 2. Load authoritative cloud & persistent data
     loadInitialAppData()
       .then((data) => {
         setSalonInfo(data.salonInfo);
@@ -63,6 +64,15 @@ export default function App() {
       .catch((err) => {
         console.warn("Storage load error:", err);
       });
+
+    // 3. Subscribe to real-time Google Cloud Firestore updates
+    // Whenever an image is changed in Admin Panel, EVERY visitor with the link gets the update in real time!
+    const unsubscribeCloud = subscribeToRealtimeAppData((cloudData) => {
+      setSalonInfo(cloudData.salonInfo);
+      setTopics(cloudData.topics);
+      setGallery(cloudData.gallery);
+      setServices(cloudData.services);
+    });
 
     const savedAdminLogin = sessionStorage.getItem("queen_admin_logged_in");
     if (savedAdminLogin === "true") {
@@ -82,7 +92,10 @@ export default function App() {
       }
     };
     window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      unsubscribeCloud();
+    };
   }, []);
 
   // Sync state helpers with durable IndexedDB persistent storage

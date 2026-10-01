@@ -10,6 +10,7 @@
 import { SalonInfo, GalleryItem, GalleryTopic, Service, AdminCredentials } from "../types";
 import { SALON_INFO, INITIAL_GALLERY_TOPICS, INITIAL_GALLERY, INITIAL_SERVICES } from "../data";
 import { resolveImageUrl } from "./imagePath";
+import { db, doc, getDoc, setDoc, onSnapshot } from "../firebase";
 
 const DB_NAME = "QueenSalonStorageDB";
 const DB_VERSION = 2;
@@ -189,18 +190,35 @@ export async function loadInitialAppData(): Promise<CompleteAppData> {
     // ignore
   }
 
-  // 2. Fetch authoritative state from Server (/api/app-data) or GitHub Static/Raw
+  // 2. Fetch authoritative state from Cloud Firestore FIRST (Universal cloud database for all visitors)
   let serverData: Partial<CompleteAppData> | null = null;
+  let loadedFromFirestore = false;
   try {
-    const res = await fetch("/api/app-data");
-    if (res.ok) {
-      const json = await res.json();
-      if (json.success && json.data) {
-        serverData = json.data;
+    const cloudDoc = await getDoc(doc(db, "appData", "main"));
+    if (cloudDoc.exists()) {
+      const cData = cloudDoc.data();
+      if (cData && (cData.salonInfo || cData.gallery || cData.services || cData.topics)) {
+        serverData = cData as Partial<CompleteAppData>;
+        loadedFromFirestore = true;
       }
     }
   } catch (err) {
-    console.warn("Could not reach backend API, checking GitHub / static files:", err);
+    console.warn("Could not reach Firestore on boot, checking backend server / static files:", err);
+  }
+
+  // 2.1 If Firestore did not respond, fetch authoritative state from Server (/api/app-data) or GitHub Static/Raw
+  if (!serverData) {
+    try {
+      const res = await fetch("/api/app-data");
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.data) {
+          serverData = json.data;
+        }
+      }
+    } catch (err) {
+      console.warn("Could not reach backend API, checking GitHub / static files:", err);
+    }
   }
 
   // 2.1 If backend API didn't respond (e.g. running on GitHub Pages), try fetching app-data.json
@@ -298,7 +316,19 @@ export async function loadInitialAppData(): Promise<CompleteAppData> {
 
   inMemoryAppData = result;
 
-  // Mirror to IndexedDB and server if server had nothing
+  // Mirror to IndexedDB, server, and seed Firestore if not already loaded from Firestore
+  if (!loadedFromFirestore) {
+    try {
+      setDoc(doc(db, "appData", "main"), {
+        salonInfo: finalSalonInfo,
+        topics: finalTopics,
+        gallery: finalGallery,
+        services: finalServices,
+        updatedAt: new Date().toISOString()
+      }).catch((e) => console.warn("Firestore seeding error:", e));
+    } catch {}
+  }
+
   if (!serverData) {
     saveAllAppData(result).catch((e) => console.warn("Initial sync save error:", e));
   } else {
@@ -334,7 +364,7 @@ export async function saveServices(services: Service[]): Promise<void> {
 
 /**
  * Consolidates and saves all application data permanently in a single verified operation.
- * Guaranteed to persist on server disk and client browser storage.
+ * Guaranteed to persist on Google Cloud Firestore, server disk, and client browser storage.
  */
 export async function saveAllAppData(data: {
   salonInfo?: SalonInfo;
@@ -360,11 +390,100 @@ export async function saveAllAppData(data: {
     if (data.services) promises.push(idbSet(KEYS.SERVICES, data.services));
     await Promise.all(promises);
 
-    // 2. Write to server disk database
-    const serverSuccess = await syncAppToServer(updatedPayload);
+    // 2. Synchronize to Google Cloud Firestore (Primary global cloud database for all visitors)
+    try {
+      const mainDoc = doc(db, "appData", "main");
+      await setDoc(mainDoc, {
+        salonInfo: updatedPayload.salonInfo,
+        topics: updatedPayload.topics,
+        gallery: updatedPayload.gallery,
+        services: updatedPayload.services,
+        updatedAt: new Date().toISOString()
+      });
+    } catch (firestoreErr) {
+      console.warn("Firestore cloud save warning:", firestoreErr);
+    }
+
+    // 3. Write to server disk database (/api/app-data)
+    await syncAppToServer(updatedPayload);
     return true;
   } catch (err) {
     console.error("خطا در ثبت نهایی اطلاعات در حافظه پایدار:", err);
     return false;
+  }
+}
+
+/**
+ * Real-time subscription to cloud Firestore:
+ * Any visitor anywhere in the world will immediately receive live updates
+ * whenever the admin changes an image or text!
+ */
+export function subscribeToRealtimeAppData(onUpdate: (data: CompleteAppData) => void): () => void {
+  try {
+    const unsub = onSnapshot(
+      doc(db, "appData", "main"),
+      (snapshot) => {
+        if (!snapshot.exists()) return;
+        const cData = snapshot.data();
+        if (!cData) return;
+
+        const finalSalonInfo: SalonInfo = {
+          ...SALON_INFO,
+          ...(cData.salonInfo || {}),
+          backgroundBannerUrl: resolveImageUrl(
+            cData.salonInfo?.backgroundBannerUrl || SALON_INFO.backgroundBannerUrl,
+            "./assets/branding/top_banner.jpg"
+          ),
+          topSmallBannerUrl: resolveImageUrl(
+            cData.salonInfo?.topSmallBannerUrl || cData.salonInfo?.logoUrl || SALON_INFO.topSmallBannerUrl,
+            "./assets/branding/logo.jpg"
+          ),
+          heroBannerUrl: resolveImageUrl(
+            cData.salonInfo?.heroBannerUrl || SALON_INFO.heroBannerUrl,
+            "./assets/branding/hero.jpg"
+          ),
+          logoUrl: resolveImageUrl(
+            cData.salonInfo?.logoUrl || cData.salonInfo?.topSmallBannerUrl || SALON_INFO.logoUrl,
+            "./assets/branding/logo.jpg"
+          )
+        };
+
+        const rawTopics = cData.topics && cData.topics.length > 0 ? cData.topics : INITIAL_GALLERY_TOPICS;
+        const finalTopics: GalleryTopic[] = rawTopics.map((t: any) => ({
+          ...t,
+          coverImage: resolveImageUrl(t.coverImage)
+        }));
+
+        const rawGallery = cData.gallery && Array.isArray(cData.gallery) ? cData.gallery : INITIAL_GALLERY;
+        const finalGallery: GalleryItem[] = rawGallery.map((g: any) => ({
+          ...g,
+          image: resolveImageUrl(g.image)
+        }));
+
+        const rawServices = cData.services && cData.services.length > 0 ? cData.services : INITIAL_SERVICES;
+        const finalServices: Service[] = rawServices.map((s: any) => ({
+          ...s,
+          image: resolveImageUrl(s.image)
+        }));
+
+        const complete: CompleteAppData = {
+          salonInfo: finalSalonInfo,
+          topics: finalTopics,
+          gallery: finalGallery,
+          services: finalServices
+        };
+
+        inMemoryAppData = complete;
+        onUpdate(complete);
+      },
+      (error) => {
+        console.warn("Realtime Firestore subscription warning:", error);
+      }
+    );
+
+    return unsub;
+  } catch (err) {
+    console.warn("Failed to subscribe to Firestore realtime updates:", err);
+    return () => {};
   }
 }

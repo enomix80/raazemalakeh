@@ -1,0 +1,38 @@
+{
+  "entities": {
+    "AppData": {
+      "title": "AppData",
+      "description": "Global salon content including branding images, topics, gallery, and services",
+      "type": "object",
+      "properties": {
+        "salonInfo": {
+          "type": "object",
+          "description": "Salon general information and banner image URLs"
+        },
+        "topics": {
+          "type": "array",
+          "description": "Active gallery topics and cover images"
+        },
+        "gallery": {
+          "type": "array",
+          "description": "Portfolio gallery items with image URLs"
+        },
+        "services": {
+          "type": "array",
+          "description": "Salon service lines, prices, and thumbnails"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "ISO timestamp of last update"
+        }
+      },
+      "required": ["salonInfo", "topics", "gallery", "services", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/appData/{docId}": {
+      "schema": "AppData",
+      "description": "Global application data document for live synchronization across all visitors"
+    }
+  }
+}
