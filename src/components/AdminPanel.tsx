@@ -263,8 +263,7 @@ export default function AdminPanel({
   const [showFinalSaveSuccessModal, setShowFinalSaveSuccessModal] = useState(false);
 
   // Helper for real-time live synchronization with site state
-  const updateFieldAndSync = (field: keyof SalonInfo, val: string) => {
-    setHasUnsavedChanges(true);
+  const updateFieldAndSync = async (field: keyof SalonInfo, val: string) => {
     const nextInfo: SalonInfo = {
       name: field === "name" ? val : infoName,
       slogan: field === "slogan" ? val : infoSlogan,
@@ -302,6 +301,23 @@ export default function AdminPanel({
 
     // Immediately push live updates to the website
     onUpdateSalonInfo(nextInfo);
+
+    // If an image was updated, immediately commit permanently to persistent storage and server
+    const isImageField = field === "topSmallBannerUrl" || field === "logoUrl" || field === "backgroundBannerUrl" || field === "heroBannerUrl";
+    if (isImageField) {
+      await saveAllAppData({
+        salonInfo: nextInfo,
+        topics,
+        gallery,
+        services
+      });
+      setHasUnsavedChanges(false);
+      setLastSavedTimestamp(
+        new Date().toLocaleTimeString("fa-IR", { hour: "2-digit", minute: "2-digit" })
+      );
+    } else {
+      setHasUnsavedChanges(true);
+    }
   };
 
   // Sync state if salonInfo prop changes and no pending edits in progress
@@ -603,9 +619,15 @@ export default function AdminPanel({
 
       onUpdateTopics(updatedTopics);
       setEditTopicCover(compressed);
+      await saveAllAppData({
+        topics: updatedTopics,
+        salonInfo,
+        gallery,
+        services
+      });
       setIsUploading(false);
       setUploadStatusMessage("");
-      alert("عکس کاور اصلی تاپیک با موفقیت آپلود و ذخیره شد!");
+      alert("✅ عکس کاور اصلی تاپیک با موفقیت آپلود شد و به صورت دائمی ثبت گردید!");
     } catch (err: any) {
       setIsUploading(false);
       setUploadStatusMessage("");
@@ -614,7 +636,7 @@ export default function AdminPanel({
   };
 
   // Remove Cover Image from Active Topic
-  const handleRemoveCover = () => {
+  const handleRemoveCover = async () => {
     if (confirm("آیا از حذف عکس کاور این تاپیک مطمئن هستید؟")) {
       const updatedTopics = topics.map((t) => {
         if (t.category === selectedTopicCategory || t.id === currentTopic?.id) {
@@ -628,7 +650,13 @@ export default function AdminPanel({
 
       onUpdateTopics(updatedTopics);
       setEditTopicCover("");
-      alert("عکس کاور تاپیک حذف شد.");
+      await saveAllAppData({
+        topics: updatedTopics,
+        salonInfo,
+        gallery,
+        services
+      });
+      alert("✅ عکس کاور تاپیک حذف و تغییرات ذخیره شد.");
     }
   };
 
@@ -655,10 +683,17 @@ export default function AdminPanel({
         });
       }
 
-      onUpdateGallery([...newItems, ...gallery]);
+      const updatedGallery = [...newItems, ...gallery];
+      onUpdateGallery(updatedGallery);
+      await saveAllAppData({
+        gallery: updatedGallery,
+        topics,
+        salonInfo,
+        services
+      });
       setIsUploading(false);
       setUploadStatusMessage("");
-      alert(`${files.length} نمونه‌کار با موفقیت به لاین «${topicTitle}» اضافه و ذخیره شد!`);
+      alert(`✅ ${files.length} نمونه‌کار با موفقیت به لاین «${topicTitle}» اضافه و به صورت دائمی ثبت شد!`);
     } catch (err: any) {
       setIsUploading(false);
       setUploadStatusMessage("");
@@ -667,7 +702,7 @@ export default function AdminPanel({
   };
 
   // Gallery Topic Photo Add Handler (From form)
-  const handleAddPhotoToTopic = (e: React.FormEvent) => {
+  const handleAddPhotoToTopic = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPhotoImage.trim()) {
       alert("لطفاً تصویر نمونه‌کار را انتخاب یا وارد نمایید.");
@@ -686,16 +721,30 @@ export default function AdminPanel({
       createdAt: new Date().toISOString()
     };
 
-    onUpdateGallery([newItem, ...gallery]);
+    const updatedGallery = [newItem, ...gallery];
+    onUpdateGallery(updatedGallery);
+    await saveAllAppData({
+      gallery: updatedGallery,
+      topics,
+      salonInfo,
+      services
+    });
     setNewPhotoTitle("");
     setNewPhotoDesc("");
     setNewPhotoImage("");
-    alert(`نمونه‌کار جدید با موفقیت به لاین «${topicTitle}» اضافه شد.`);
+    alert(`✅ نمونه‌کار جدید با موفقیت به لاین «${topicTitle}» اضافه و ذخیره شد.`);
   };
 
-  const handleDeleteGalleryItem = (id: string) => {
+  const handleDeleteGalleryItem = async (id: string) => {
     if (confirm("آیا از حذف این عکس نمونه کار مطمئن هستید؟")) {
-      onUpdateGallery(gallery.filter((g) => g.id !== id));
+      const updatedGallery = gallery.filter((g) => g.id !== id);
+      onUpdateGallery(updatedGallery);
+      await saveAllAppData({
+        gallery: updatedGallery,
+        topics,
+        salonInfo,
+        services
+      });
       if (editingPhotoId === id) {
         setEditingPhotoId(null);
       }
@@ -711,7 +760,7 @@ export default function AdminPanel({
   };
 
   // Save Edited Photo Item
-  const handleSaveEditedPhoto = (e: React.FormEvent) => {
+  const handleSaveEditedPhoto = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editPhotoImage.trim()) {
       alert("لطفاً تصویر نمونه‌کار را مشخص نمایید.");
@@ -731,11 +780,17 @@ export default function AdminPanel({
     });
 
     onUpdateGallery(updatedGallery);
+    await saveAllAppData({
+      gallery: updatedGallery,
+      topics,
+      salonInfo,
+      services
+    });
     setEditingPhotoId(null);
     setEditPhotoTitle("");
     setEditPhotoDesc("");
     setEditPhotoImage("");
-    alert("نمونه‌کار با موفقیت ویرایش شد.");
+    alert("✅ نمونه‌کار با موفقیت ویرایش و ذخیره شد.");
   };
 
   const handleCancelEditPhoto = () => {
@@ -756,7 +811,7 @@ export default function AdminPanel({
   };
 
   // Save Edited Topic (including Cover Image)
-  const handleSaveEditedTopic = (e: React.FormEvent) => {
+  const handleSaveEditedTopic = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editTopicTitle.trim()) {
       alert("لطفاً عنوان تاپیک را مشخص نمایید.");
@@ -777,12 +832,18 @@ export default function AdminPanel({
     });
 
     onUpdateTopics(updatedTopics);
+    await saveAllAppData({
+      topics: updatedTopics,
+      salonInfo,
+      gallery,
+      services
+    });
     setIsEditingTopic(false);
-    alert("مشخصات و تصویر کاور تاپیک با موفقیت بروزرسانی شد!");
+    alert("✅ مشخصات و تصویر کاور تاپیک با موفقیت ذخیره و ثبت شد!");
   };
 
   // Delete Topic and its photos
-  const handleDeleteTopic = (topicToDelete: GalleryTopic) => {
+  const handleDeleteTopic = async (topicToDelete: GalleryTopic) => {
     if (topics.length <= 1) {
       alert("حداقل یک تاپیک و آلبوم باید در سیستم وجود داشته باشد.");
       return;
@@ -790,8 +851,15 @@ export default function AdminPanel({
 
     if (confirm(`آیا از حذف کامل تاپیک «${topicToDelete.title}» و تمام نمونه‌کارهای مرتبط با آن مطمئن هستید؟`)) {
       const remainingTopics = topics.filter((t) => t.id !== topicToDelete.id);
+      const remainingGallery = gallery.filter((g) => g.category !== topicToDelete.category);
       onUpdateTopics(remainingTopics);
-      onUpdateGallery(gallery.filter((g) => g.category !== topicToDelete.category));
+      onUpdateGallery(remainingGallery);
+      await saveAllAppData({
+        topics: remainingTopics,
+        gallery: remainingGallery,
+        salonInfo,
+        services
+      });
       setSelectedTopicCategory(remainingTopics[0]?.category || "");
       setIsEditingTopic(false);
       alert(`تاپیک «${topicToDelete.title}» با موفقیت حذف شد.`);
@@ -799,7 +867,7 @@ export default function AdminPanel({
   };
 
   // Add New Custom Topic Handler
-  const handleCreateNewTopic = (e: React.FormEvent) => {
+  const handleCreateNewTopic = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTopicTitle.trim() || !newTopicCategory.trim()) {
       alert("لطفاً حداقل عنوان و دسته‌بندی تاپیک را وارد نمایید.");
@@ -815,7 +883,14 @@ export default function AdminPanel({
       badgeText: newTopicBadge.trim() || "لاین جدید"
     };
 
-    onUpdateTopics([...topics, newTopic]);
+    const updatedTopics = [...topics, newTopic];
+    onUpdateTopics(updatedTopics);
+    await saveAllAppData({
+      topics: updatedTopics,
+      salonInfo,
+      gallery,
+      services
+    });
     setSelectedTopicCategory(newTopic.category);
     setShowNewTopicModal(false);
     setNewTopicTitle("");
@@ -823,7 +898,7 @@ export default function AdminPanel({
     setNewTopicCover("");
     setNewTopicDesc("");
     setNewTopicBadge("");
-    alert(`تاپیک جدید "${newTopic.title}" با موفقیت اضافه شد!`);
+    alert(`✅ تاپیک جدید "${newTopic.title}" با موفقیت اضافه و ذخیره شد!`);
   };
 
   // Master Final Save & Persistence Handler
@@ -892,10 +967,10 @@ export default function AdminPanel({
       setIsUploading(true);
       setUploadStatusMessage("در حال پردازش و ذخیره دائمی بنر بک‌گراند...");
       const compressed = await compressImageFile(file, 1600, 1000, 0.80);
-      updateFieldAndSync("backgroundBannerUrl", compressed);
+      await updateFieldAndSync("backgroundBannerUrl", compressed);
       setIsUploading(false);
       setUploadStatusMessage("");
-      alert("✅ تصویر بنر بک‌گراند بارگذاری و بلافاصله بر روی سایت اعمال شد! برای تثبیت دائمی، دکمه «ثبت نهایی تغییرات» را بزنید.");
+      alert("✅ تصویر بنر بک‌گراند بارگذاری شد و بلافاصله بر روی سایت ذخیره و تثبیت گردید!");
     } catch (err: any) {
       setIsUploading(false);
       setUploadStatusMessage("");
@@ -909,10 +984,10 @@ export default function AdminPanel({
       setIsUploading(true);
       setUploadStatusMessage("در حال پردازش و ذخیره دائمی بنر کوچک سمت راست بالا...");
       const compressed = await compressImageFile(file, 600, 600, 0.85);
-      updateFieldAndSync("topSmallBannerUrl", compressed);
+      await updateFieldAndSync("topSmallBannerUrl", compressed);
       setIsUploading(false);
       setUploadStatusMessage("");
-      alert("✅ بنر کوچک سمت راست بالا (لوگو و نشان سالن) با موفقیت روی سایت اعمال شد! برای تثبیت دائمی، دکمه «ثبت نهایی تغییرات» را بزنید.");
+      alert("✅ نشان و لوگوی سالن با موفقیت تغییر کرد و به صورت دائمی ثبت شد!");
     } catch (err: any) {
       setIsUploading(false);
       setUploadStatusMessage("");
@@ -926,10 +1001,10 @@ export default function AdminPanel({
       setIsUploading(true);
       setUploadStatusMessage("در حال پردازش و ذخیره دائمی تصویر بنر هیرو...");
       const compressed = await compressImageFile(file, 1280, 900, 0.80);
-      updateFieldAndSync("heroBannerUrl", compressed);
+      await updateFieldAndSync("heroBannerUrl", compressed);
       setIsUploading(false);
       setUploadStatusMessage("");
-      alert("✅ تصویر کادر معرفی سالن (هیرو) بلافاصله بر روی سایت قرار گرفت! برای تثبیت دائمی، دکمه «ثبت نهایی تغییرات» را بزنید.");
+      alert("✅ تصویر بنر هیرو (معرفی سالن) با موفقیت تغییر یافت و ذخیره شد!");
     } catch (err: any) {
       setIsUploading(false);
       setUploadStatusMessage("");
@@ -938,56 +1013,56 @@ export default function AdminPanel({
   };
 
   // Apply & Save Background Banner URL
-  const handleApplyBackgroundBannerUrl = () => {
+  const handleApplyBackgroundBannerUrl = async () => {
     if (!infoBackgroundBannerUrl.trim()) {
       alert("لطفاً آدرس اینترنتی معتبر برای بنر بک‌گراند را وارد فرمایید.");
       return;
     }
     const val = infoBackgroundBannerUrl.trim();
-    updateFieldAndSync("backgroundBannerUrl", val);
-    alert("✅ بنر بک‌گراند بالای وبسایت با موفقیت روی سایت قرار گرفت! جهت ماندگاری دائمی، دکمه «ثبت نهایی تغییرات» را بزنید.");
+    await updateFieldAndSync("backgroundBannerUrl", val);
+    alert("✅ بنر بک‌گراند بالای وبسایت با موفقیت روی سایت قرار گرفت و ثبت شد!");
   };
 
   // Apply & Save Top Small Banner URL
-  const handleApplyTopSmallBannerUrl = () => {
+  const handleApplyTopSmallBannerUrl = async () => {
     if (!infoTopSmallBannerUrl.trim()) {
       alert("لطفاً آدرس اینترنتی معتبر برای بنر کوچک یا لوگو را وارد فرمایید.");
       return;
     }
     const val = infoTopSmallBannerUrl.trim();
-    updateFieldAndSync("topSmallBannerUrl", val);
-    alert("✅ بنر کوچک سمت راست بالا (نشان و لوگو) با موفقیت روی سایت قرار گرفت! جهت ماندگاری دائمی، دکمه «ثبت نهایی تغییرات» را بزنید.");
+    await updateFieldAndSync("topSmallBannerUrl", val);
+    alert("✅ نشان و لوگوی سالن با موفقیت روی سایت قرار گرفت و ثبت شد!");
   };
 
   // Apply & Save Hero Banner URL
-  const handleApplyHeroBannerUrl = () => {
+  const handleApplyHeroBannerUrl = async () => {
     if (!infoHeroBannerUrl.trim()) {
       alert("لطفاً آدرس اینترنتی معتبر برای تصویر هیرو را وارد فرمایید.");
       return;
     }
     const val = infoHeroBannerUrl.trim();
-    updateFieldAndSync("heroBannerUrl", val);
-    alert("✅ تصویر بنر هیرو با موفقیت بر روی سایت قرار گرفت! جهت ماندگاری دائمی، دکمه «ثبت نهایی تغییرات» را بزنید.");
+    await updateFieldAndSync("heroBannerUrl", val);
+    alert("✅ تصویر بنر هیرو با موفقیت بر روی سایت قرار گرفت و ثبت شد!");
   };
 
-  const handleResetBackgroundBanner = () => {
+  const handleResetBackgroundBanner = async () => {
     if (confirm("آیا از بازنشانی بنر بک‌گراند به تصویر پیش‌فرض اطمینان دارید؟")) {
-      updateFieldAndSync("backgroundBannerUrl", "");
-      alert("بنر بک‌گراند به تصویر اولیه بازگردانده شد. جهت ماندگاری دائمی، دکمه «ثبت نهایی تغییرات» را بزنید.");
+      await updateFieldAndSync("backgroundBannerUrl", "");
+      alert("✅ بنر بک‌گراند به تصویر پیش‌فرض بازگردانده و ذخیره شد.");
     }
   };
 
-  const handleResetTopSmallBanner = () => {
+  const handleResetTopSmallBanner = async () => {
     if (confirm("آیا از بازنشانی بنر کوچک سمت راست بالا به لوگوی پیش‌فرض اطمینان دارید؟")) {
-      updateFieldAndSync("topSmallBannerUrl", "");
-      alert("بنر کوچک سمت راست بالا به حالت پیش‌فرض بازگردانده شد. جهت ماندگاری دائمی، دکمه «ثبت نهایی تغییرات» را بزنید.");
+      await updateFieldAndSync("topSmallBannerUrl", "");
+      alert("✅ بنر کوچک سمت راست بالا به حالت پیش‌فرض بازگردانده و ذخیره شد.");
     }
   };
 
-  const handleResetHeroBanner = () => {
+  const handleResetHeroBanner = async () => {
     if (confirm("آیا از بازنشانی تصویر هیرو به نمای پیش‌فرض سالن اطمینان دارید؟")) {
-      updateFieldAndSync("heroBannerUrl", "");
-      alert("تصویر کادر هیرو به حالت پیش‌فرض بازگردانده شد. جهت ماندگاری دائمی، دکمه «ثبت نهایی تغییرات» را بزنید.");
+      await updateFieldAndSync("heroBannerUrl", "");
+      alert("✅ تصویر کادر هیرو به حالت پیش‌فرض بازگردانده و ذخیره شد.");
     }
   };
 
@@ -1012,8 +1087,8 @@ export default function AdminPanel({
                   if (file) {
                     try {
                       const base64Logo = await compressImageFile(file, 600, 600, 0.85);
-                      updateFieldAndSync("topSmallBannerUrl", base64Logo);
-                      alert("✅ تصویر لوگوی جدید بر روی سایت اعمال شد! برای ثبت قطعی، دکمه «ثبت نهایی تغییرات» را بزنید.");
+                      await updateFieldAndSync("topSmallBannerUrl", base64Logo);
+                      alert("✅ لوگوی سالن با موفقیت تغییر کرد و به صورت دائمی ثبت شد!");
                     } catch (err: any) {
                       alert(err.message || "خطا در فشرده‌سازی تصویر لوگو");
                     }
@@ -3329,10 +3404,10 @@ export default function AdminPanel({
                                       setIsUploading(true);
                                       setUploadStatusMessage("در حال فشرده‌سازی تصویر لوگو...");
                                       const compressed = await compressImageFile(file, 600, 600, 0.85);
-                                      updateFieldAndSync("topSmallBannerUrl", compressed);
+                                      await updateFieldAndSync("topSmallBannerUrl", compressed);
                                       setIsUploading(false);
                                       setUploadStatusMessage("");
-                                      alert("✅ تصویر لوگو اعمال شد! جهت ماندگاری دائمی، دکمه «ثبت نهایی تغییرات» را بزنید.");
+                                      alert("✅ تصویر لوگو اعمال شد و به صورت دائمی ثبت گردید!");
                                     } catch (err: any) {
                                       setIsUploading(false);
                                       setUploadStatusMessage("");

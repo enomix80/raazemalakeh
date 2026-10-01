@@ -44,9 +44,30 @@ function readStoredData() {
 
 // Helper to write data safely and atomically
 function writeStoredData(data: any) {
+  const serialized = JSON.stringify(data, null, 2);
   const tempFile = `${DATA_FILE}.tmp`;
-  fs.writeFileSync(tempFile, JSON.stringify(data, null, 2), "utf-8");
+  fs.writeFileSync(tempFile, serialized, "utf-8");
   fs.renameSync(tempFile, DATA_FILE);
+
+  // Synchronously replicate to static public/dist/docs copies so every route and user gets the exact same latest content
+  const targetDirs = [
+    path.resolve(__dirname, "public/data"),
+    path.resolve(__dirname, "public"),
+    path.resolve(__dirname, "dist/data"),
+    path.resolve(__dirname, "dist"),
+    path.resolve(__dirname, "docs/data"),
+    path.resolve(__dirname, "docs")
+  ];
+
+  for (const dir of targetDirs) {
+    if (fs.existsSync(dir)) {
+      try {
+        fs.writeFileSync(path.join(dir, "app-data.json"), serialized, "utf-8");
+      } catch (e) {
+        console.warn(`Could not sync app-data.json to ${dir}:`, e);
+      }
+    }
+  }
 }
 
 // Serve uploads and assets statically
@@ -94,19 +115,19 @@ function scanAssetsFolder() {
     return Array.from(set);
   };
 
-  // 1. Scan branding
+  // 1. Scan branding (only fill missing images, never overwrite user customizations)
   const brandingFiles = getFilesInFolder("branding");
   for (const f of brandingFiles) {
     if (!isImageFile(f)) continue;
     const lower = f.toLowerCase();
     const assetUrl = `./assets/branding/${f}`;
     if (lower.startsWith("logo")) {
-      currentSalonInfo.logoUrl = assetUrl;
-      currentSalonInfo.topSmallBannerUrl = assetUrl;
+      if (!currentSalonInfo.logoUrl) currentSalonInfo.logoUrl = assetUrl;
+      if (!currentSalonInfo.topSmallBannerUrl) currentSalonInfo.topSmallBannerUrl = assetUrl;
     } else if (lower.startsWith("hero")) {
-      currentSalonInfo.heroBannerUrl = assetUrl;
+      if (!currentSalonInfo.heroBannerUrl) currentSalonInfo.heroBannerUrl = assetUrl;
     } else if (lower.startsWith("top_banner") || lower.startsWith("banner")) {
-      currentSalonInfo.backgroundBannerUrl = assetUrl;
+      if (!currentSalonInfo.backgroundBannerUrl) currentSalonInfo.backgroundBannerUrl = assetUrl;
     }
   }
 

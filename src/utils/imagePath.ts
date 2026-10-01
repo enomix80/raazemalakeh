@@ -2,14 +2,14 @@
  * Helper to safely resolve image URLs across local development,
  * GitHub Pages (subpaths), and production environments.
  */
-export function resolveImageUrl(url?: string | null): string {
+export function resolveImageUrl(url?: string | null, fallback: string = "./assets/branding/logo.jpg"): string {
   if (!url || typeof url !== "string") {
-    return "./assets/branding/logo.jpg";
+    return fallback;
   }
 
   const trimmed = url.trim();
   if (!trimmed) {
-    return "./assets/branding/logo.jpg";
+    return fallback;
   }
 
   // Base64 data URLs or Blob URLs are fully self-contained

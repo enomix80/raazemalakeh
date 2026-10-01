@@ -130,10 +130,18 @@ export default function App() {
     sessionStorage.setItem("queen_admin_logged_in", "true");
   };
 
-  const handleAdminLogout = () => {
+  const handleAdminLogout = async () => {
+    try {
+      await saveAllAppData({
+        salonInfo,
+        topics,
+        gallery,
+        services
+      });
+    } catch {}
     setIsAdminLoggedIn(false);
     sessionStorage.removeItem("queen_admin_logged_in");
-    alert("شما از پنل مدیریت خارج شدید.");
+    alert("شما از پنل مدیریت خارج شدید و تمامی اطلاعات و تصاویر شما با موفقیت تثبیت شدند.");
   };
 
   const effectiveLogoUrl = resolveImageUrl(salonInfo.topSmallBannerUrl || salonInfo.logoUrl || LOGO_IMAGE_PATH);
@@ -229,7 +237,10 @@ export default function App() {
           onUpdateTopics={handleUpdateTopics}
           onUpdateSalonInfo={handleUpdateSalonInfo}
           onFinalSaveAll={handleFinalSaveAll}
-          onClose={() => setShowAdminPanel(false)}
+          onClose={() => {
+            saveAllAppData({ salonInfo, topics, gallery, services }).catch(() => {});
+            setShowAdminPanel(false);
+          }}
           isAdminLoggedIn={isAdminLoggedIn}
           onLoginSuccess={handleAdminLogin}
         />

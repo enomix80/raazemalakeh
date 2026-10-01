@@ -314,26 +314,22 @@ export async function loadInitialAppData(): Promise<CompleteAppData> {
 
 export async function saveSalonInfo(info: SalonInfo): Promise<void> {
   inMemoryAppData.salonInfo = info;
-  await idbSet(KEYS.SALON_INFO, info);
-  triggerDebouncedServerSync();
+  await saveAllAppData({ salonInfo: info });
 }
 
 export async function saveTopics(topics: GalleryTopic[]): Promise<void> {
   inMemoryAppData.topics = topics;
-  await idbSet(KEYS.TOPICS, topics);
-  triggerDebouncedServerSync();
+  await saveAllAppData({ topics });
 }
 
 export async function saveGallery(gallery: GalleryItem[]): Promise<void> {
   inMemoryAppData.gallery = gallery;
-  await idbSet(KEYS.GALLERY, gallery);
-  triggerDebouncedServerSync();
+  await saveAllAppData({ gallery });
 }
 
 export async function saveServices(services: Service[]): Promise<void> {
   inMemoryAppData.services = services;
-  await idbSet(KEYS.SERVICES, services);
-  triggerDebouncedServerSync();
+  await saveAllAppData({ services });
 }
 
 /**
