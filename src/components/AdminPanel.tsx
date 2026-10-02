@@ -33,7 +33,8 @@ import {
   CloudUpload,
   Download,
   Globe,
-  Share2
+  Share2,
+  LogOut
 } from "lucide-react";
 import { Service, GalleryItem, GalleryTopic, SalonInfo, AdminCredentials } from "../types";
 import { DEFAULT_ADMIN_CREDENTIALS } from "../data";
@@ -67,6 +68,7 @@ interface AdminPanelProps {
   onClose: () => void;
   isAdminLoggedIn: boolean;
   onLoginSuccess: () => void;
+  onLogout?: () => void;
 }
 
 export default function AdminPanel({
@@ -81,7 +83,8 @@ export default function AdminPanel({
   onFinalSaveAll,
   onClose,
   isAdminLoggedIn,
-  onLoginSuccess
+  onLoginSuccess,
+  onLogout
 }: AdminPanelProps) {
   // Authentication State
   const [username, setUsername] = useState("");
@@ -644,20 +647,35 @@ export default function AdminPanel({
     }
   };
 
-  // Batch or Single Sample Photos Upload
+  const MAX_PHOTOS_PER_TOPIC = 20;
+
+  // Batch or Single Sample Photos Upload (Up to 20 photos per topic)
   const handleBatchSamplePhotosUpload = async (files: File[]) => {
     if (files.length === 0) return;
+    const currentTopicPhotos = gallery.filter((g) => g.category === selectedTopicCategory);
+    const availableSlots = Math.max(0, MAX_PHOTOS_PER_TOPIC - currentTopicPhotos.length);
+
+    if (availableSlots <= 0) {
+      alert(`⚠️ سقف ظرفیت ۲۰ تصویر برای این تاپیک پر شده است! جهت بارگذاری عکس جدید، ابتدا یکی از نمونه‌کارهای قبلی را حذف نمایید.`);
+      return;
+    }
+
+    const filesToUpload = files.slice(0, availableSlots);
+    if (files.length > availableSlots) {
+      alert(`توجه: با توجه به سقف مجاز ۲۰ تصویر برای هر تاپیک، تعداد ${availableSlots} تصویر از ${files.length} تصویر انتخابی آپلود خواهد شد.`);
+    }
+
     try {
       setIsUploading(true);
-      setUploadStatusMessage(`در حال آپلود و بهینه‌سازی مستقیم ${files.length} تصویر بر روی سرور...`);
+      setUploadStatusMessage(`در حال آپلود و بهینه‌سازی مستقیم ${filesToUpload.length} تصویر بر روی سرور...`);
 
       const newItems: GalleryItem[] = [];
       const topicTitle = currentTopic?.title || selectedTopicCategory;
 
-      for (let i = 0; i < files.length; i++) {
-        setUploadStatusMessage(`در حال آپلود مستقیم عکس ${i + 1} از ${files.length}...`);
+      for (let i = 0; i < filesToUpload.length; i++) {
+        setUploadStatusMessage(`در حال آپلود مستقیم عکس ${i + 1} از ${filesToUpload.length}...`);
         const uploaded = await uploadImageDirectly(
-          files[i],
+          filesToUpload[i],
           "gallery",
           `sample-${Date.now()}-${i}`,
           1280,
@@ -684,7 +702,7 @@ export default function AdminPanel({
       });
       setIsUploading(false);
       setUploadStatusMessage("");
-      alert(`✅ ${files.length} نمونه‌کار با موفقیت مستقیم روی سرور آپلود شد و بدون نیاز به گیت‌هاب برای همه کاربران با لینک قابل مشاهده است!`);
+      alert(`✅ ${filesToUpload.length} نمونه‌کار با موفقیت مستقیم روی سرور آپلود شد و به این لاین افزوده گردید (ظرفیت فعلی: ${currentTopicPhotos.length + filesToUpload.length} از ۲۰).`);
     } catch (err: any) {
       setIsUploading(false);
       setUploadStatusMessage("");
@@ -692,9 +710,62 @@ export default function AdminPanel({
     }
   };
 
+  // Direct upload for an empty slot (1 to 20)
+  const handleDirectSlotUpload = async (file: File) => {
+    const currentTopicPhotos = gallery.filter((g) => g.category === selectedTopicCategory);
+    if (currentTopicPhotos.length >= MAX_PHOTOS_PER_TOPIC) {
+      alert(`⚠️ سقف ظرفیت ۲۰ تصویر برای این تاپیک پر شده است.`);
+      return;
+    }
+
+    try {
+      setIsUploading(true);
+      setUploadStatusMessage("در حال آپلود و ثبت مستقیم تصویر در این جایگاه...");
+      const uploaded = await uploadImageDirectly(
+        file,
+        "gallery",
+        `slot-${Date.now()}`,
+        1280,
+        1280,
+        0.82
+      );
+      const topicTitle = currentTopic?.title || selectedTopicCategory;
+      const newItem: GalleryItem = {
+        id: "g-" + Date.now().toString(),
+        title: `نمونه کار ${topicTitle} (شماره ${currentTopicPhotos.length + 1})`,
+        category: selectedTopicCategory,
+        image: uploaded.url,
+        description: "",
+        createdAt: new Date().toISOString()
+      };
+
+      const updatedGallery = [...gallery, newItem];
+      onUpdateGallery(updatedGallery);
+      await saveAllAppData({
+        gallery: updatedGallery,
+        topics,
+        salonInfo,
+        services
+      });
+      setIsUploading(false);
+      setUploadStatusMessage("");
+      alert(`✅ تصویر در جایگاه شماره ${currentTopicPhotos.length + 1} از ۲۰ با موفقیت آپلود و ذخیره شد!`);
+    } catch (err: any) {
+      setIsUploading(false);
+      setUploadStatusMessage("");
+      alert(err.message || "خطا در آپلود تصویر");
+    }
+  };
+
   // Gallery Topic Photo Add Handler (From form)
   const handleAddPhotoToTopic = async (e: React.FormEvent) => {
     e.preventDefault();
+    const currentTopicPhotos = gallery.filter((g) => g.category === selectedTopicCategory);
+    if (currentTopicPhotos.length >= MAX_PHOTOS_PER_TOPIC) {
+      alert(`⚠️ سقف مجاز ۲۰ تصویر برای این تاپیک تکمیل شده است. برای افزودن نمونه‌کار جدید، لطفاً یکی از تصاویر قدیمی‌تر را حذف نمایید.`);
+      return;
+    }
+
     if (!newPhotoImage.trim()) {
       alert("لطفاً تصویر نمونه‌کار را انتخاب یا وارد نمایید.");
       return;
@@ -723,7 +794,7 @@ export default function AdminPanel({
     setNewPhotoTitle("");
     setNewPhotoDesc("");
     setNewPhotoImage("");
-    alert(`✅ نمونه‌کار جدید با موفقیت به لاین «${topicTitle}» اضافه و ذخیره شد.`);
+    alert(`✅ نمونه‌کار جدید با موفقیت به لاین «${topicTitle}» اضافه و ذخیره شد (${currentTopicPhotos.length + 1} از ۲۰).`);
   };
 
   const handleDeleteGalleryItem = async (id: string) => {
@@ -1057,6 +1128,22 @@ export default function AdminPanel({
     }
   };
 
+  // Immediate Logout and Exit from Admin Panel
+  const handleLogoutAndExit = (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    try {
+      if (onLogout) {
+        onLogout();
+      }
+    } catch {}
+    try {
+      onClose();
+    } catch {}
+  };
+
   const currentTopic = topics.find((t) => t.category === selectedTopicCategory) || topics[0];
   const topicPhotos = gallery.filter((g) => g.category === selectedTopicCategory);
 
@@ -1110,8 +1197,19 @@ export default function AdminPanel({
               )}
             </label>
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2.5">
                 <h2 className="font-black text-lg sm:text-xl font-serif">پنل مدیریت سالن زیبایی راز ملکه</h2>
+                {isAdminLoggedIn && (
+                  <button
+                    type="button"
+                    onClick={(e) => handleLogoutAndExit(e)}
+                    className="bg-red-500 hover:bg-red-600 active:bg-red-700 text-white border border-white/30 px-3.5 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 shadow-md"
+                    title="خروج فوری از حساب مدیریت و بازگشت به وبسایت"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>خروج از پنل</span>
+                  </button>
+                )}
               </div>
               <p className="text-xs text-[#F2D3B7] font-semibold">
                 مدیریت تاپیک‌ها، بارگذاری نمونه کار، منوی خدمات و رمز عبور اختصاصی
@@ -1238,6 +1336,15 @@ export default function AdminPanel({
                 <Lock className="w-4 h-4" />
                 <span>ورود ایمن به پنل مدیریت</span>
               </button>
+
+              <button
+                type="button"
+                onClick={onClose}
+                className="w-full py-2.5 rounded-2xl text-xs font-bold text-gray-500 hover:text-gray-800 hover:bg-gray-100 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+                <span>انصراف و بازگشت به وبسایت</span>
+              </button>
             </form>
           </div>
         ) : (
@@ -1330,6 +1437,19 @@ export default function AdminPanel({
                 <GitBranch className="w-4 h-4 shrink-0 text-purple-600" />
                 <span className="font-extrabold">پشتیبان‌گیری گیت‌هاب (اختیاری)</span>
               </button>
+
+              {/* Dedicated Logout Option in Sidebar (Right Side) */}
+              <div className="md:mt-auto pt-3 border-t border-gray-200/80 flex flex-col gap-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={(e) => handleLogoutAndExit(e)}
+                  className="w-full text-right px-4 py-3 rounded-2xl text-xs sm:text-sm font-black transition-all flex items-center gap-2.5 whitespace-nowrap cursor-pointer text-white bg-red-600 hover:bg-red-700 active:bg-red-800 border border-red-700 shadow-md active:scale-98 transition-colors group"
+                  title="خروج کامل از حساب کاربری مدیریت و بازگشت به وبسایت"
+                >
+                  <LogOut className="w-4 h-4 shrink-0 text-white" />
+                  <span>خروج از پنل مدیریت</span>
+                </button>
+              </div>
             </div>
 
             {/* Main Content Area */}
@@ -1627,25 +1747,40 @@ export default function AdminPanel({
                         </form>
                       )}
 
-                      {/* Topic Showcase & Gallery Status Note */}
-                      <div className="bg-[#06808B]/5 border border-[#06808B]/20 p-5 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                      {/* Topic Capacity & Gallery Status Note */}
+                      <div className="bg-gradient-to-r from-[#06808B]/10 via-white to-amber-500/10 border border-[#06808B]/25 p-5 rounded-3xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xs">
                         <div className="flex items-center gap-3.5">
-                          <div className="w-12 h-12 rounded-2xl bg-[#06808B]/10 text-[#06808B] flex items-center justify-center shrink-0 border border-[#06808B]/20">
+                          <div className="w-12 h-12 rounded-2xl bg-[#06808B] text-white flex items-center justify-center shrink-0 shadow-sm">
                             <Sparkles className="w-6 h-6" />
                           </div>
-                          <div className="space-y-1">
-                            <h5 className="text-xs sm:text-sm font-black text-[#2C1E14]">
-                              وضعیت این تاپیک در گالری تصاویر سالن
-                            </h5>
+                          <div className="space-y-1 text-right">
+                            <div className="flex items-center gap-2">
+                              <h5 className="text-sm font-black text-[#2C1E14]">
+                                ظرفیت تصاویر لاین «{currentTopic.title}»
+                              </h5>
+                              <span className="text-[10px] bg-emerald-100 text-emerald-800 font-extrabold px-2.5 py-0.5 rounded-full">
+                                سقف ۲۰ عکس باز است
+                              </span>
+                            </div>
                             <p className="text-xs text-gray-600 font-semibold leading-relaxed">
-                              این تاپیک با عکس کاور، نشان «{currentTopic.badgeText || "لاین تخصصی"}» و تمام نمونه‌کارهای زیر به صورت آلبوم هوشمند و اسلایدی در بخش گالری تصاویر سالن نمایش داده می‌شود.
+                              شما می‌توانید تا ۲۰ تصویر نمونه‌کار اختصاصی به همراه یک عکس کاور برای این لاین بارگذاری کنید. تمامی عکس‌ها مستقیماً بر روی سایت ذخیره و برای همه کاربران نمایش داده می‌شوند.
                             </p>
+                            {/* Visual Capacity Bar */}
+                            <div className="w-full max-w-md bg-gray-200 h-2.5 rounded-full overflow-hidden mt-2">
+                              <div
+                                className="bg-gradient-to-r from-[#06808B] to-emerald-500 h-full transition-all duration-500 rounded-full"
+                                style={{ width: `${Math.min(100, (topicPhotos.length / 20) * 100)}%` }}
+                              />
+                            </div>
                           </div>
                         </div>
 
-                        <div className="shrink-0">
-                          <span className="bg-[#06808B] text-white text-[11px] font-black px-3.5 py-1.5 rounded-full shadow-sm">
-                            {topicPhotos.length + 1} تصویر در گالری
+                        <div className="shrink-0 flex flex-col items-end gap-1">
+                          <span className="bg-[#06808B] text-white text-xs font-black px-4 py-1.5 rounded-full shadow-sm">
+                            {topicPhotos.length} از ۲۰ نمونه‌کار
+                          </span>
+                          <span className="text-[10px] text-gray-500 font-bold">
+                            {Math.max(0, 20 - topicPhotos.length)} جایگاه خالی برای بارگذاری
                           </span>
                         </div>
                       </div>
@@ -1656,11 +1791,11 @@ export default function AdminPanel({
                           <div className="flex items-center gap-2">
                             <Plus className="w-4 h-4 text-[#06808B]" />
                             <h4 className="text-xs sm:text-sm font-black text-[#2C1E14]">
-                              افزودن نمونه‌کار جدید به لاین «{currentTopic.title}»
+                              افزودن نمونه‌کار جدید به لاین «{currentTopic.title}» (تا سقف ۲۰ تصویر)
                             </h4>
                           </div>
-                          <span className="text-[11px] text-gray-500 font-semibold">
-                            (توضیحات و عنوان اختیاری هستند)
+                          <span className="text-[11px] text-emerald-700 font-bold bg-emerald-50 px-2.5 py-0.5 rounded-full">
+                            {Math.max(0, 20 - topicPhotos.length)} جایگاه خالی در این لاین
                           </span>
                         </div>
 
@@ -1866,8 +2001,8 @@ export default function AdminPanel({
                             </div>
                           )}
 
-                          {/* Sample Photos in this Topic */}
-                          {topicPhotos.map((photo) => (
+                          {/* Sample Photos in this Topic (Up to 20) */}
+                          {topicPhotos.map((photo, index) => (
                             <div
                               key={photo.id}
                               className="relative group bg-white p-2 rounded-2xl border border-gray-200 shadow-xs hover:shadow-md transition-all flex flex-col justify-between"
@@ -1881,6 +2016,9 @@ export default function AdminPanel({
                                     (e.target as HTMLImageElement).src = resolveImageUrl("./assets/branding/logo.jpg");
                                   }}
                                 />
+                                <span className="absolute top-1.5 right-1.5 bg-black/70 backdrop-blur-xs text-white text-[9px] font-black px-1.5 py-0.5 rounded-md shadow-xs">
+                                  عکس {index + 1} از ۲۰
+                                </span>
                                 <div className="absolute top-1.5 left-1.5 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                   <button
                                     type="button"
@@ -1929,6 +2067,50 @@ export default function AdminPanel({
                               </div>
                             </div>
                           ))}
+
+                          {/* Empty Slots Up to 20 Photos */}
+                          {topicPhotos.length < 20 &&
+                            Array.from({ length: 20 - topicPhotos.length }).map((_, slotIdx) => {
+                              const slotNumber = topicPhotos.length + slotIdx + 1;
+                              const inputId = `empty-slot-input-${currentTopic.id}-${slotNumber}`;
+                              return (
+                                <div
+                                  key={`empty-slot-${currentTopic.id}-${slotNumber}`}
+                                  className="relative group bg-[#06808B]/5 hover:bg-[#06808B]/10 p-3 rounded-2xl border-2 border-dashed border-[#06808B]/30 hover:border-[#06808B] transition-all flex flex-col items-center justify-center text-center gap-2 aspect-square"
+                                >
+                                  <div className="w-9 h-9 rounded-xl bg-white shadow-2xs border border-[#06808B]/20 text-[#06808B] flex items-center justify-center group-hover:scale-110 transition-transform">
+                                    <Plus className="w-4 h-4" />
+                                  </div>
+                                  <div className="space-y-0.5">
+                                    <span className="text-[11px] font-black text-[#2C1E14] block">
+                                      جایگاه شماره {slotNumber}
+                                    </span>
+                                    <span className="text-[9px] text-gray-500 font-semibold block">
+                                      (از ۲۰ عکس لاین)
+                                    </span>
+                                  </div>
+                                  <label
+                                    htmlFor={inputId}
+                                    className="bg-[#06808B] hover:bg-[#056972] text-white text-[10px] font-black px-2.5 py-1.5 rounded-xl shadow-xs cursor-pointer flex items-center gap-1 transition-all active:scale-95"
+                                  >
+                                    <Upload className="w-3 h-3" />
+                                    <span>آپلود عکس</span>
+                                    <input
+                                      id={inputId}
+                                      type="file"
+                                      accept="image/*"
+                                      className="hidden"
+                                      disabled={isUploading}
+                                      onChange={(e) => {
+                                        const file = e.target.files?.[0];
+                                        if (file) handleDirectSlotUpload(file);
+                                        e.target.value = "";
+                                      }}
+                                    />
+                                  </label>
+                                </div>
+                              );
+                            })}
                         </div>
                       </div>
 

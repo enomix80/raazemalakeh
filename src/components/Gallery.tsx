@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   Sparkles,
   Crown,
@@ -75,6 +75,9 @@ export default function Gallery({
   // Fullscreen modal state
   const [isFullscreenOpen, setIsFullscreenOpen] = useState<boolean>(false);
 
+  // Reference for thumbnails container
+  const thumbnailsRef = useRef<HTMLDivElement>(null);
+
   // Whenever topics change, ensure selectedTopicId is valid
   useEffect(() => {
     if (!topics.find((t) => t.id === selectedTopicId) && topics.length > 0) {
@@ -126,6 +129,23 @@ export default function Gallery({
 
     return list;
   }, [activeTopic, gallery]);
+
+  // Auto-scroll active thumbnail into view
+  useEffect(() => {
+    if (thumbnailsRef.current) {
+      const activeEl = thumbnailsRef.current.children[currentImageIndex] as HTMLElement | undefined;
+      if (activeEl) {
+        activeEl.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+      }
+    }
+  }, [currentImageIndex]);
+
+  const scrollThumbnails = (direction: "left" | "right") => {
+    if (thumbnailsRef.current) {
+      const amount = direction === "left" ? -240 : 240;
+      thumbnailsRef.current.scrollBy({ left: amount, behavior: "smooth" });
+    }
+  };
 
   // Current active image object
   const currentImage: DisplayImage | undefined = topicImages[currentImageIndex] || topicImages[0];
@@ -348,55 +368,89 @@ export default function Gallery({
               </div>
             )}
 
-            {/* THUMBNAILS ROW UNDERNEATH (نمونه‌ها کوچولو زیرش بیاد) */}
+            {/* THUMBNAILS ROW UNDERNEATH (نمونه‌ها با اسکرول هوشمند تا ۲۰ تصویر) */}
             <div className="p-4 sm:p-6 bg-white/40 border-t border-[#06808B]/10">
               <div className="flex items-center justify-between mb-3 text-xs font-black text-gray-700">
-                <span className="flex items-center gap-1 text-[#06808B]">
+                <span className="flex items-center gap-1.5 text-[#06808B]">
                   <ImageIcon className="w-3.5 h-3.5" />
-                  <span>آلبوم تصاویر این تاپیک:</span>
+                  <span>آلبوم تصاویر این لاین:</span>
+                  <span className="text-[10px] bg-[#06808B]/10 text-[#06808B] px-2 py-0.5 rounded-full font-bold">
+                    {topicImages.length} تصویر
+                  </span>
                 </span>
                 <span className="text-[11px] text-gray-500 font-bold">
                   {topicImages.length > 0 ? `${currentImageIndex + 1} از ${topicImages.length}` : "بدون نمونه‌کار"}
                 </span>
               </div>
 
-              {/* Horizontal Thumbnails List or Empty Note */}
+              {/* Horizontal Thumbnails List with Scroll Navigation */}
               {topicImages.length > 0 ? (
-                <div className="flex items-center gap-3 overflow-x-auto pb-2 scrollbar-none">
-                  {topicImages.map((img, idx) => {
-                    const isActive = idx === currentImageIndex;
-                    return (
+                <div className="relative group/thumbs">
+                  {/* Left / Right Scroll Buttons for Long Lists (up to 20 images) */}
+                  {topicImages.length > 5 && (
+                    <>
                       <button
-                        key={img.id}
-                        onClick={() => setCurrentImageIndex(idx)}
-                        className={`group/thumb relative w-18 h-18 sm:w-22 sm:h-22 rounded-2xl overflow-hidden shrink-0 transition-all duration-300 cursor-pointer border ${
-                          isActive
-                            ? "ring-3 ring-[#06808B] border-2 border-white scale-105 shadow-md"
-                            : "border-white/80 opacity-75 hover:opacity-100 hover:scale-102"
-                        }`}
-                        title={img.title}
+                        type="button"
+                        onClick={() => scrollThumbnails("right")}
+                        className="absolute right-0 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-white/90 hover:bg-white text-[#2C1E14] shadow-md border border-gray-200 flex items-center justify-center cursor-pointer transition-all hover:scale-110 active:scale-95 opacity-0 group-hover/thumbs:opacity-100"
+                        title="مشاهده تصاویر قبلی"
                       >
-                        <img
-                          src={img.image}
-                          alt={img.title}
-                          referrerPolicy="no-referrer"
-                          className="w-full h-full object-cover"
-                        />
-                        {img.isCover && (
-                          <span className="absolute top-1 right-1 bg-[#06808B] text-white text-[9px] font-black px-1.5 py-0.2 rounded-md shadow-2xs">
-                            کاور
-                          </span>
-                        )}
-                        {isActive && (
-                          <div className="absolute inset-0 bg-[#06808B]/15 pointer-events-none" />
-                        )}
+                        <ChevronRight className="w-4 h-4" />
                       </button>
-                    );
-                  })}
+                      <button
+                        type="button"
+                        onClick={() => scrollThumbnails("left")}
+                        className="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-white/90 hover:bg-white text-[#2C1E14] shadow-md border border-gray-200 flex items-center justify-center cursor-pointer transition-all hover:scale-110 active:scale-95 opacity-0 group-hover/thumbs:opacity-100"
+                        title="مشاهده تصاویر بعدی"
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                      </button>
+                    </>
+                  )}
+
+                  <div
+                    ref={thumbnailsRef}
+                    className="flex items-center gap-3 overflow-x-auto pb-2 scrollbar-thin scroll-smooth px-1"
+                  >
+                    {topicImages.map((img, idx) => {
+                      const isActive = idx === currentImageIndex;
+                      return (
+                        <button
+                          key={img.id}
+                          onClick={() => setCurrentImageIndex(idx)}
+                          className={`group/thumb relative w-18 h-18 sm:w-22 sm:h-22 rounded-2xl overflow-hidden shrink-0 transition-all duration-300 cursor-pointer border ${
+                            isActive
+                              ? "ring-3 ring-[#06808B] border-2 border-white scale-105 shadow-md"
+                              : "border-white/80 opacity-75 hover:opacity-100 hover:scale-102"
+                          }`}
+                          title={`${img.title} (تصویر ${idx + 1} از ${topicImages.length})`}
+                        >
+                          <img
+                            src={img.image}
+                            alt={img.title}
+                            referrerPolicy="no-referrer"
+                            className="w-full h-full object-cover"
+                          />
+                          {img.isCover ? (
+                            <span className="absolute top-1 right-1 bg-[#06808B] text-white text-[9px] font-black px-1.5 py-0.2 rounded-md shadow-2xs">
+                              کاور
+                            </span>
+                          ) : (
+                            <span className="absolute bottom-1 right-1 bg-black/60 text-white text-[8px] font-mono font-bold px-1 rounded">
+                              {idx}
+                            </span>
+                          )}
+                          {isActive && (
+                            <div className="absolute inset-0 bg-[#06808B]/15 pointer-events-none" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               ) : (
                 <div className="py-4 text-center text-xs font-medium text-gray-500 flex items-center justify-center gap-2">
-                  <span>هیچ نمونه‌کاری ثبت نشده است. از پنل مدیریت می‌توانید عکس‌های دلخواه خود را بارگذاری نمایید.</span>
+                  <span>هیچ نمونه‌کاری ثبت نشده است. از پنل مدیریت می‌توانید تا ۲۰ عکس دلخواه برای این لاین بارگذاری نمایید.</span>
                 </div>
               )}
             </div>
@@ -499,17 +553,18 @@ export default function Gallery({
                 </div>
               )}
 
-              {/* Lightbox Thumbnails */}
-              <div className="flex items-center justify-center gap-2 overflow-x-auto pb-1 max-w-full">
+              {/* Lightbox Thumbnails (Smooth Scroll for up to 20 images) */}
+              <div className="flex items-center justify-start sm:justify-center gap-2 overflow-x-auto pb-2 max-w-full px-2 scrollbar-none">
                 {topicImages.map((img, idx) => (
                   <button
                     key={`fs-${img.id}`}
                     onClick={() => setCurrentImageIndex(idx)}
-                    className={`w-12 h-12 rounded-xl overflow-hidden shrink-0 transition-all cursor-pointer border ${
+                    className={`relative w-12 h-12 rounded-xl overflow-hidden shrink-0 transition-all cursor-pointer border ${
                       idx === currentImageIndex
-                        ? "border-[#06808B] ring-2 ring-[#06808B] scale-110"
+                        ? "border-[#06808B] ring-2 ring-[#06808B] scale-110 shadow-lg"
                         : "border-white/30 opacity-60 hover:opacity-100"
                     }`}
+                    title={`${img.title} (${idx + 1} از ${topicImages.length})`}
                   >
                     <img
                       src={img.image}
@@ -517,6 +572,9 @@ export default function Gallery({
                       referrerPolicy="no-referrer"
                       className="w-full h-full object-cover"
                     />
+                    <span className="absolute bottom-0.5 right-0.5 bg-black/70 text-white text-[8px] font-mono px-1 rounded">
+                      {idx + 1}
+                    </span>
                   </button>
                 ))}
               </div>
