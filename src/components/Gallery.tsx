@@ -15,7 +15,8 @@ import {
   Layers,
   Image as ImageIcon,
   ImagePlus,
-  Phone
+  Phone,
+  Trash2
 } from "lucide-react";
 import { GalleryTopic, GalleryItem, SalonInfo } from "../types";
 import { resolveImageUrl } from "../utils/imagePath";
@@ -26,6 +27,7 @@ interface GalleryProps {
   gallery?: GalleryItem[];
   isAdmin?: boolean;
   onDeleteGalleryItem?: (id: string) => void;
+  onRemoveCover?: (topicId: string) => void;
   onAddGalleryItem?: (item: GalleryItem) => void;
 }
 
@@ -62,7 +64,10 @@ const getTopicIcon = (category: string) => {
 export default function Gallery({
   topics,
   salonInfo,
-  gallery = []
+  gallery = [],
+  isAdmin = false,
+  onDeleteGalleryItem,
+  onRemoveCover
 }: GalleryProps) {
   // Selected active topic ID (defaults to first topic)
   const [selectedTopicId, setSelectedTopicId] = useState<string>(
@@ -319,6 +324,28 @@ export default function Gallery({
                   />
                 )}
 
+                {/* Admin Quick Delete Overlay on Main Viewer */}
+                {isAdmin && currentImage && (
+                  <div className="absolute top-4 left-4 z-20 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (currentImage.isCover) {
+                          onRemoveCover?.(activeTopic.id);
+                        } else {
+                          onDeleteGalleryItem?.(currentImage.id);
+                        }
+                      }}
+                      className="bg-red-600 hover:bg-red-700 text-white text-xs font-black px-3.5 py-2 rounded-xl backdrop-blur-md shadow-lg flex items-center gap-1.5 transition-all hover:scale-105 active:scale-95 cursor-pointer border border-red-400"
+                      title={currentImage.isCover ? "حذف عکس کاور این لاین" : "حذف این نمونه‌کار از گالری"}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      <span>{currentImage.isCover ? "حذف عکس کاور" : "حذف این نمونه‌کار"}</span>
+                    </button>
+                  </div>
+                )}
+
                 {/* Gradient Vignette at Bottom - Only for cover image */}
                 {currentImage?.isCover && (
                   <div className="absolute inset-0 bg-gradient-to-t from-[#2C1E14]/90 via-[#2C1E14]/20 to-transparent pointer-events-none" />
@@ -443,6 +470,22 @@ export default function Gallery({
                           {isActive && (
                             <div className="absolute inset-0 bg-[#06808B]/15 pointer-events-none" />
                           )}
+                          {isAdmin && (
+                            <span
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (img.isCover) {
+                                  onRemoveCover?.(activeTopic.id);
+                                } else {
+                                  onDeleteGalleryItem?.(img.id);
+                                }
+                              }}
+                              className="absolute top-1 left-1 bg-red-600/90 hover:bg-red-700 text-white p-1 rounded-lg opacity-0 group-hover/thumb:opacity-100 transition-opacity shadow-md hover:scale-110 cursor-pointer z-10"
+                              title={img.isCover ? "حذف عکس کاور" : "حذف این نمونه‌کار"}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </span>
+                          )}
                         </button>
                       );
                     })}
@@ -498,13 +541,34 @@ export default function Gallery({
                 </span>
               </div>
 
-              <button
-                onClick={() => setIsFullscreenOpen(false)}
-                className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
-                title="بستن (Esc)"
-              >
-                <X className="w-6 h-6" />
-              </button>
+              <div className="flex items-center gap-2">
+                {isAdmin && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (currentImage.isCover) {
+                        onRemoveCover?.(activeTopic.id);
+                      } else {
+                        onDeleteGalleryItem?.(currentImage.id);
+                      }
+                      setIsFullscreenOpen(false);
+                    }}
+                    className="bg-red-600 hover:bg-red-700 text-white text-xs font-black px-3.5 py-1.5 rounded-xl flex items-center gap-1.5 shadow-md transition-all active:scale-95 cursor-pointer border border-red-500"
+                    title={currentImage.isCover ? "حذف عکس کاور این لاین" : "حذف این نمونه‌کار"}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>{currentImage.isCover ? "حذف کاور" : "حذف این عکس"}</span>
+                  </button>
+                )}
+
+                <button
+                  onClick={() => setIsFullscreenOpen(false)}
+                  className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
+                  title="بستن (Esc)"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
             </div>
 
             {/* Main Fullscreen Image Area */}

@@ -171,7 +171,7 @@ export async function syncAppToServer(data: Partial<CompleteAppData>): Promise<b
 }
 
 /**
- * Load application data from Server -> IndexedDB -> localStorage -> Defaults
+ * Load application data from Server (/api/app-data) -> IndexedDB -> localStorage -> Defaults
  */
 export async function loadInitialAppData(): Promise<CompleteAppData> {
   // 1. Check if we already have localStorage cached values for immediate return
@@ -190,86 +190,22 @@ export async function loadInitialAppData(): Promise<CompleteAppData> {
     // ignore
   }
 
-  // 2. Fetch authoritative state from Cloud Firestore FIRST (Universal cloud database for all visitors)
-  let serverData: Partial<CompleteAppData> | null = null;
-  let loadedFromFirestore = false;
+  let serverData: Partial<CompleteAppData & { updatedAt?: string }> | null = null;
+
+  // 2. Fetch authoritative state from Server backend disk (/api/app-data) FIRST
   try {
-    const cloudDoc = await getDoc(doc(db, "appData", "main"));
-    if (cloudDoc.exists()) {
-      const cData = cloudDoc.data();
-      if (cData && (cData.salonInfo || cData.gallery || cData.services || cData.topics)) {
-        serverData = cData as Partial<CompleteAppData>;
-        loadedFromFirestore = true;
-      }
-    }
-
-    // If main doc wasn't sufficient, try reading subdocuments
-    if (!serverData || !serverData.salonInfo || !serverData.gallery) {
-      const [sInfoDoc, topicsDoc, servicesDoc, metaDoc] = await Promise.all([
-        getDoc(doc(db, "appData", "salonInfo")),
-        getDoc(doc(db, "appData", "topics")),
-        getDoc(doc(db, "appData", "services")),
-        getDoc(doc(db, "appData", "gallery_meta"))
-      ]);
-
-      const subData: Partial<CompleteAppData> = serverData || {};
-      if (sInfoDoc.exists() && sInfoDoc.data().data) {
-        subData.salonInfo = sInfoDoc.data().data;
-        loadedFromFirestore = true;
-      }
-      if (topicsDoc.exists() && topicsDoc.data().data) {
-        subData.topics = topicsDoc.data().data;
-        loadedFromFirestore = true;
-      }
-      if (servicesDoc.exists() && servicesDoc.data().data) {
-        subData.services = servicesDoc.data().data;
-        loadedFromFirestore = true;
-      }
-
-      if (metaDoc.exists()) {
-        const meta = metaDoc.data();
-        const totalChunks = Number(meta.totalChunks) || 0;
-        const chunkFetches: Promise<any>[] = [];
-        for (let i = 0; i < totalChunks; i++) {
-          chunkFetches.push(getDoc(doc(db, "appData", `gallery_chunk_${i}`)));
-        }
-        const chunkDocs = await Promise.all(chunkFetches);
-        let assembledGallery: GalleryItem[] = [];
-        for (const cd of chunkDocs) {
-          if (cd.exists() && Array.isArray(cd.data().items)) {
-            assembledGallery.push(...cd.data().items);
-          }
-        }
-        if (assembledGallery.length > 0) {
-          subData.gallery = assembledGallery;
-          loadedFromFirestore = true;
-        }
-      }
-
-      if (loadedFromFirestore) {
-        serverData = subData;
+    const res = await fetch("/api/app-data", { cache: "no-store" });
+    if (res.ok) {
+      const json = await res.json();
+      if (json.success && json.data) {
+        serverData = json.data;
       }
     }
   } catch (err) {
-    console.warn("Could not reach Firestore on boot, checking backend server / static files:", err);
+    console.warn("Backend API not reachable directly, checking other sources:", err);
   }
 
-  // 2.1 If Firestore did not respond, fetch authoritative state from Server (/api/app-data) or GitHub Static/Raw
-  if (!serverData) {
-    try {
-      const res = await fetch("/api/app-data");
-      if (res.ok) {
-        const json = await res.json();
-        if (json.success && json.data) {
-          serverData = json.data;
-        }
-      }
-    } catch (err) {
-      console.warn("Could not reach backend API, checking GitHub / static files:", err);
-    }
-  }
-
-  // 2.1 If backend API didn't respond (e.g. running on GitHub Pages), try fetching app-data.json
+  // 2.1 If backend API didn't respond (e.g. running on GitHub Pages / static), try fetching app-data.json
   if (!serverData) {
     try {
       const timestamp = Date.now();
@@ -291,19 +227,6 @@ export async function loadInitialAppData(): Promise<CompleteAppData> {
         }
       }
 
-      // Also check saved GitHub config
-      const ghConfigStr = localStorage.getItem("queen_salon_github_config");
-      if (ghConfigStr) {
-        try {
-          const ghConfig = JSON.parse(ghConfigStr);
-          if (ghConfig.repo) {
-            const cleanRepo = ghConfig.repo.replace(/^https?:\/\/github\.com\//, "").replace(/\.git$/, "").trim();
-            const branch = ghConfig.branch || "main";
-            candidates.push(`https://raw.githubusercontent.com/${cleanRepo}/${branch}/data/app-data.json?t=${timestamp}`);
-          }
-        } catch {}
-      }
-
       for (const url of candidates) {
         try {
           const res = await fetch(url, { cache: "no-store" });
@@ -321,10 +244,28 @@ export async function loadInitialAppData(): Promise<CompleteAppData> {
     }
   }
 
-  // 3. If server or remote GitHub didn't provide data, try IndexedDB
+  // 2.2 Optional Firestore check ONLY if Firestore updatedAt is strictly newer than server disk
+  try {
+    const cloudDoc = await getDoc(doc(db, "appData", "main"));
+    if (cloudDoc.exists()) {
+      const cData = cloudDoc.data();
+      if (cData && (cData.salonInfo || cData.gallery || cData.services || cData.topics)) {
+        const cloudTime = cData.updatedAt || "";
+        const serverTime = serverData?.updatedAt || "";
+        // Only adopt Firestore data if it is strictly NEWER than what is already saved on server disk
+        if (!serverData || (cloudTime && (!serverTime || cloudTime > serverTime))) {
+          serverData = cData as Partial<CompleteAppData>;
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("Firestore read note (server disk used):", err);
+  }
+
+  // 3. Fallbacks: IndexedDB or local storage
   let idbSalonInfo = serverData?.salonInfo || (await idbGet<SalonInfo>(KEYS.SALON_INFO)) || loadedFromLocal.salonInfo;
   let idbTopics = serverData?.topics || (await idbGet<GalleryTopic[]>(KEYS.TOPICS)) || loadedFromLocal.topics;
-  let idbGallery = serverData?.gallery || (await idbGet<GalleryItem[]>(KEYS.GALLERY)) || loadedFromLocal.gallery;
+  let idbGallery = serverData?.gallery !== undefined ? serverData.gallery : ((await idbGet<GalleryItem[]>(KEYS.GALLERY)) || loadedFromLocal.gallery);
   let idbServices = serverData?.services || (await idbGet<Service[]>(KEYS.SERVICES)) || loadedFromLocal.services;
 
   // 4. Merge safely with defaults without erasing user edits, and normalize image paths
@@ -343,11 +284,16 @@ export async function loadInitialAppData(): Promise<CompleteAppData> {
     coverImage: resolveImageUrl(t.coverImage)
   }));
 
-  const rawGallery = idbGallery && Array.isArray(idbGallery) ? idbGallery : INITIAL_GALLERY;
-  const finalGallery: GalleryItem[] = rawGallery.map((g) => ({
-    ...g,
-    image: resolveImageUrl(g.image)
-  }));
+  // Preserve empty gallery if user explicitly removed items
+  const finalGallery: GalleryItem[] = Array.isArray(idbGallery)
+    ? idbGallery.map((g) => ({
+        ...g,
+        image: resolveImageUrl(g.image)
+      }))
+    : INITIAL_GALLERY.map((g) => ({
+        ...g,
+        image: resolveImageUrl(g.image)
+      }));
 
   const rawServices = idbServices && idbServices.length > 0 ? idbServices : INITIAL_SERVICES;
   const finalServices: Service[] = rawServices.map((s) => ({
@@ -364,28 +310,11 @@ export async function loadInitialAppData(): Promise<CompleteAppData> {
 
   inMemoryAppData = result;
 
-  // Mirror to IndexedDB, server, and seed Firestore if not already loaded from Firestore
-  if (!loadedFromFirestore) {
-    try {
-      setDoc(doc(db, "appData", "main"), {
-        salonInfo: finalSalonInfo,
-        topics: finalTopics,
-        gallery: finalGallery,
-        services: finalServices,
-        updatedAt: new Date().toISOString()
-      }).catch((e) => console.warn("Firestore seeding error:", e));
-    } catch {}
-  }
-
-  if (!serverData) {
-    saveAllAppData(result).catch((e) => console.warn("Initial sync save error:", e));
-  } else {
-    // Cache server data locally in IndexedDB & localStorage for fast offline boot
-    idbSet(KEYS.SALON_INFO, finalSalonInfo).catch(() => {});
-    idbSet(KEYS.TOPICS, finalTopics).catch(() => {});
-    idbSet(KEYS.GALLERY, finalGallery).catch(() => {});
-    idbSet(KEYS.SERVICES, finalServices).catch(() => {});
-  }
+  // Cache locally in IndexedDB & localStorage for fast offline boot
+  idbSet(KEYS.SALON_INFO, finalSalonInfo).catch(() => {});
+  idbSet(KEYS.TOPICS, finalTopics).catch(() => {});
+  idbSet(KEYS.GALLERY, finalGallery).catch(() => {});
+  idbSet(KEYS.SERVICES, finalServices).catch(() => {});
 
   return result;
 }
@@ -410,6 +339,8 @@ export async function saveServices(services: Service[]): Promise<void> {
   await saveAllAppData({ services });
 }
 
+let lastSavedLocalIso = "";
+
 /**
  * Consolidates and saves all application data permanently in a single verified operation.
  * Guaranteed to persist on Google Cloud Firestore, server disk, and client browser storage.
@@ -423,58 +354,46 @@ export async function saveAllAppData(data: {
   try {
     const updatedPayload: CompleteAppData = {
       salonInfo: data.salonInfo || inMemoryAppData.salonInfo,
-      topics: data.topics || inMemoryAppData.topics,
-      gallery: data.gallery || inMemoryAppData.gallery,
-      services: data.services || inMemoryAppData.services
+      topics: data.topics !== undefined ? data.topics : inMemoryAppData.topics,
+      gallery: data.gallery !== undefined ? data.gallery : inMemoryAppData.gallery,
+      services: data.services !== undefined ? data.services : inMemoryAppData.services
     };
 
     inMemoryAppData = updatedPayload;
+    const nowIso = new Date().toISOString();
+    lastSavedLocalIso = nowIso;
 
     // 1. Write to local storage & IndexedDB
     const promises: Promise<void>[] = [];
     if (data.salonInfo) promises.push(idbSet(KEYS.SALON_INFO, data.salonInfo));
-    if (data.topics) promises.push(idbSet(KEYS.TOPICS, data.topics));
-    if (data.gallery) promises.push(idbSet(KEYS.GALLERY, data.gallery));
-    if (data.services) promises.push(idbSet(KEYS.SERVICES, data.services));
+    if (data.topics !== undefined) promises.push(idbSet(KEYS.TOPICS, updatedPayload.topics));
+    if (data.gallery !== undefined) promises.push(idbSet(KEYS.GALLERY, updatedPayload.gallery));
+    if (data.services !== undefined) promises.push(idbSet(KEYS.SERVICES, updatedPayload.services));
     await Promise.all(promises);
 
-    // 2. Synchronize to Google Cloud Firestore (Primary global cloud database for all visitors)
+    // 2. Write to server disk database (/api/app-data) FIRST (authoritative permanent storage)
     try {
-      const nowIso = new Date().toISOString();
+      await syncAppToServer(updatedPayload);
+    } catch (serverErr) {
+      console.warn("Server disk sync notice:", serverErr);
+    }
+
+    // 3. Non-blocking Firestore cloud mirror (safely caught in case of Firestore daily write quota limit)
+    try {
       const mainDoc = doc(db, "appData", "main");
-      await setDoc(mainDoc, {
+      setDoc(mainDoc, {
         salonInfo: updatedPayload.salonInfo,
         topics: updatedPayload.topics,
         gallery: updatedPayload.gallery,
         services: updatedPayload.services,
         updatedAt: nowIso
+      }).catch((firestoreErr) => {
+        console.warn("Firestore cloud mirror note (saved to server disk & IndexedDB):", firestoreErr);
       });
-
-      // Also save to individual Firestore subdocuments so large image datasets never exceed 1MB limits
-      await Promise.all([
-        setDoc(doc(db, "appData", "salonInfo"), { data: updatedPayload.salonInfo, updatedAt: nowIso }),
-        setDoc(doc(db, "appData", "topics"), { data: updatedPayload.topics, updatedAt: nowIso }),
-        setDoc(doc(db, "appData", "services"), { data: updatedPayload.services, updatedAt: nowIso })
-      ]);
-
-      // Chunk gallery in sets of 10 items
-      const galleryItems = updatedPayload.gallery || [];
-      const chunkSize = 10;
-      const totalChunks = Math.ceil(galleryItems.length / chunkSize);
-      const chunkPromises: Promise<any>[] = [
-        setDoc(doc(db, "appData", "gallery_meta"), { totalChunks, totalItems: galleryItems.length, updatedAt: nowIso })
-      ];
-      for (let i = 0; i < totalChunks; i++) {
-        const chunk = galleryItems.slice(i * chunkSize, (i + 1) * chunkSize);
-        chunkPromises.push(setDoc(doc(db, "appData", `gallery_chunk_${i}`), { items: chunk, chunkIndex: i }));
-      }
-      await Promise.all(chunkPromises);
     } catch (firestoreErr) {
-      console.warn("Firestore cloud save warning:", firestoreErr);
+      console.warn("Firestore cloud mirror error:", firestoreErr);
     }
 
-    // 3. Write to server disk database (/api/app-data)
-    await syncAppToServer(updatedPayload);
     return true;
   } catch (err) {
     console.error("خطا در ثبت نهایی اطلاعات در حافظه پایدار:", err);
@@ -495,6 +414,11 @@ export function subscribeToRealtimeAppData(onUpdate: (data: CompleteAppData) => 
         if (!snapshot.exists()) return;
         const cData = snapshot.data();
         if (!cData) return;
+
+        // If local update is newer than or equal to incoming Firestore snapshot, do not overwrite local changes
+        if (cData.updatedAt && lastSavedLocalIso && cData.updatedAt <= lastSavedLocalIso) {
+          return;
+        }
 
         const finalSalonInfo: SalonInfo = {
           ...SALON_INFO,
@@ -517,19 +441,19 @@ export function subscribeToRealtimeAppData(onUpdate: (data: CompleteAppData) => 
           )
         };
 
-        const rawTopics = cData.topics && cData.topics.length > 0 ? cData.topics : INITIAL_GALLERY_TOPICS;
+        const rawTopics = cData.topics !== undefined && Array.isArray(cData.topics) ? cData.topics : inMemoryAppData.topics;
         const finalTopics: GalleryTopic[] = rawTopics.map((t: any) => ({
           ...t,
           coverImage: resolveImageUrl(t.coverImage)
         }));
 
-        const rawGallery = cData.gallery && Array.isArray(cData.gallery) ? cData.gallery : INITIAL_GALLERY;
+        const rawGallery = cData.gallery !== undefined && Array.isArray(cData.gallery) ? cData.gallery : inMemoryAppData.gallery;
         const finalGallery: GalleryItem[] = rawGallery.map((g: any) => ({
           ...g,
           image: resolveImageUrl(g.image)
         }));
 
-        const rawServices = cData.services && cData.services.length > 0 ? cData.services : INITIAL_SERVICES;
+        const rawServices = cData.services !== undefined && Array.isArray(cData.services) ? cData.services : inMemoryAppData.services;
         const finalServices: Service[] = rawServices.map((s: any) => ({
           ...s,
           image: resolveImageUrl(s.image)

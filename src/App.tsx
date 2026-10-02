@@ -147,14 +147,6 @@ export default function App() {
     setIsAdminLoggedIn(false);
     setShowAdminPanel(false);
     sessionStorage.removeItem("queen_admin_logged_in");
-    try {
-      saveAllAppData({
-        salonInfo,
-        topics,
-        gallery,
-        services
-      }).catch(() => {});
-    } catch {}
   };
 
   const effectiveLogoUrl = resolveImageUrl(salonInfo.topSmallBannerUrl || salonInfo.logoUrl || LOGO_IMAGE_PATH);
@@ -228,6 +220,10 @@ export default function App() {
         salonInfo={salonInfo}
         isAdmin={isAdminLoggedIn}
         onDeleteGalleryItem={(id) => handleUpdateGallery(gallery.filter((g) => g.id !== id))}
+        onRemoveCover={(topicId) => {
+          const updatedTopics = topics.map((t) => (t.id === topicId ? { ...t, coverImage: "" } : t));
+          handleUpdateTopics(updatedTopics);
+        }}
         onAddGalleryItem={handleAddGalleryItem}
       />
 
@@ -251,7 +247,6 @@ export default function App() {
           onUpdateSalonInfo={handleUpdateSalonInfo}
           onFinalSaveAll={handleFinalSaveAll}
           onClose={() => {
-            saveAllAppData({ salonInfo, topics, gallery, services }).catch(() => {});
             setShowAdminPanel(false);
           }}
           isAdminLoggedIn={isAdminLoggedIn}

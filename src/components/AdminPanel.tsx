@@ -230,6 +230,7 @@ export default function AdminPanel({
   // Upload progress & loading state
   const [isUploading, setIsUploading] = useState(false);
   const [uploadStatusMessage, setUploadStatusMessage] = useState("");
+  const [actionStatusToast, setActionStatusToast] = useState("");
 
   // State for Editing Active Topic Cover & Metadata
   const [isEditingTopic, setIsEditingTopic] = useState(false);
@@ -580,11 +581,8 @@ export default function AdminPanel({
   };
 
   const handleDeleteService = async (id: string) => {
-    if (confirm("آیا از حذف این لاین خدمت مطمئن هستید؟")) {
-      const updated = services.filter((s) => s.id !== id);
-      await syncServicesImmediately(updated);
-      alert("لاین خدمت حذف شد.");
-    }
+    const updated = services.filter((s) => s.id !== id);
+    await syncServicesImmediately(updated);
   };
 
   // Direct Cover Upload from PC/Phone with automatic compression & server/cloud upload
@@ -624,27 +622,26 @@ export default function AdminPanel({
 
   // Remove Cover Image from Active Topic
   const handleRemoveCover = async () => {
-    if (confirm("آیا از حذف عکس کاور این تاپیک مطمئن هستید؟")) {
-      const updatedTopics = topics.map((t) => {
-        if (t.category === selectedTopicCategory || t.id === currentTopic?.id) {
-          return {
-            ...t,
-            coverImage: ""
-          };
-        }
-        return t;
-      });
+    const updatedTopics = topics.map((t) => {
+      if (t.category === selectedTopicCategory || t.id === currentTopic?.id) {
+        return {
+          ...t,
+          coverImage: ""
+        };
+      }
+      return t;
+    });
 
-      onUpdateTopics(updatedTopics);
-      setEditTopicCover("");
-      await saveAllAppData({
-        topics: updatedTopics,
-        salonInfo,
-        gallery,
-        services
-      });
-      alert("✅ عکس کاور تاپیک حذف و تغییرات ذخیره شد.");
-    }
+    onUpdateTopics(updatedTopics);
+    setEditTopicCover("");
+    await saveAllAppData({
+      topics: updatedTopics,
+      salonInfo,
+      gallery,
+      services
+    });
+    setActionStatusToast(`✅ عکس کاور با موفقیت حذف گردید و تغییرات ذخیره شد.`);
+    setTimeout(() => setActionStatusToast(""), 3500);
   };
 
   const MAX_PHOTOS_PER_TOPIC = 20;
@@ -798,19 +795,37 @@ export default function AdminPanel({
   };
 
   const handleDeleteGalleryItem = async (id: string) => {
-    if (confirm("آیا از حذف این عکس نمونه کار مطمئن هستید؟")) {
-      const updatedGallery = gallery.filter((g) => g.id !== id);
-      onUpdateGallery(updatedGallery);
-      await saveAllAppData({
-        gallery: updatedGallery,
-        topics,
-        salonInfo,
-        services
-      });
-      if (editingPhotoId === id) {
-        setEditingPhotoId(null);
-      }
+    const updatedGallery = gallery.filter((g) => g.id !== id);
+    onUpdateGallery(updatedGallery);
+    await saveAllAppData({
+      gallery: updatedGallery,
+      topics,
+      salonInfo,
+      services
+    });
+    if (editingPhotoId === id) {
+      setEditingPhotoId(null);
     }
+    setActionStatusToast("✅ تصویر با موفقیت حذف شد و تغییرات روی سرور ثبت گردید.");
+    setTimeout(() => setActionStatusToast(""), 3500);
+  };
+
+  // Delete all sample photos in current active topic
+  const handleDeleteAllPhotosInTopic = async () => {
+    const topicTitle = currentTopic?.title || selectedTopicCategory;
+    const updatedGallery = gallery.filter((g) => g.category !== selectedTopicCategory);
+    onUpdateGallery(updatedGallery);
+    await saveAllAppData({
+      gallery: updatedGallery,
+      topics,
+      salonInfo,
+      services
+    });
+    if (editingPhotoId && topicPhotos.some((p) => p.id === editingPhotoId)) {
+      setEditingPhotoId(null);
+    }
+    setActionStatusToast(`✅ تمامی تصاویر نمونه‌کارهای لاین «${topicTitle}» با موفقیت حذف شدند.`);
+    setTimeout(() => setActionStatusToast(""), 3500);
   };
 
   // Start Editing Specific Photo Item
@@ -911,21 +926,18 @@ export default function AdminPanel({
       return;
     }
 
-    if (confirm(`آیا از حذف کامل تاپیک «${topicToDelete.title}» و تمام نمونه‌کارهای مرتبط با آن مطمئن هستید؟`)) {
-      const remainingTopics = topics.filter((t) => t.id !== topicToDelete.id);
-      const remainingGallery = gallery.filter((g) => g.category !== topicToDelete.category);
-      onUpdateTopics(remainingTopics);
-      onUpdateGallery(remainingGallery);
-      await saveAllAppData({
-        topics: remainingTopics,
-        gallery: remainingGallery,
-        salonInfo,
-        services
-      });
-      setSelectedTopicCategory(remainingTopics[0]?.category || "");
-      setIsEditingTopic(false);
-      alert(`تاپیک «${topicToDelete.title}» با موفقیت حذف شد.`);
-    }
+    const remainingTopics = topics.filter((t) => t.id !== topicToDelete.id);
+    const remainingGallery = gallery.filter((g) => g.category !== topicToDelete.category);
+    onUpdateTopics(remainingTopics);
+    onUpdateGallery(remainingGallery);
+    await saveAllAppData({
+      topics: remainingTopics,
+      gallery: remainingGallery,
+      salonInfo,
+      services
+    });
+    setSelectedTopicCategory(remainingTopics[0]?.category || "");
+    setIsEditingTopic(false);
   };
 
   // Add New Custom Topic Handler
@@ -1108,24 +1120,15 @@ export default function AdminPanel({
   };
 
   const handleResetBackgroundBanner = async () => {
-    if (confirm("آیا از بازنشانی بنر بک‌گراند به تصویر پیش‌فرض اطمینان دارید؟")) {
-      await updateFieldAndSync("backgroundBannerUrl", "");
-      alert("✅ بنر بک‌گراند به تصویر پیش‌فرض بازگردانده و ذخیره شد.");
-    }
+    await updateFieldAndSync("backgroundBannerUrl", "");
   };
 
   const handleResetTopSmallBanner = async () => {
-    if (confirm("آیا از بازنشانی بنر کوچک سمت راست بالا به لوگوی پیش‌فرض اطمینان دارید؟")) {
-      await updateFieldAndSync("topSmallBannerUrl", "");
-      alert("✅ بنر کوچک سمت راست بالا به حالت پیش‌فرض بازگردانده و ذخیره شد.");
-    }
+    await updateFieldAndSync("topSmallBannerUrl", "");
   };
 
   const handleResetHeroBanner = async () => {
-    if (confirm("آیا از بازنشانی تصویر هیرو به نمای پیش‌فرض سالن اطمینان دارید؟")) {
-      await updateFieldAndSync("heroBannerUrl", "");
-      alert("✅ تصویر کادر هیرو به حالت پیش‌فرض بازگردانده و ذخیره شد.");
-    }
+    await updateFieldAndSync("heroBannerUrl", "");
   };
 
   // Immediate Logout and Exit from Admin Panel
@@ -1469,6 +1472,23 @@ export default function AdminPanel({
                   </span>
                 </div>
               </div>
+
+              {/* Action Status Toast */}
+              {actionStatusToast && (
+                <div className="bg-emerald-600 text-white px-5 py-3 rounded-2xl mb-5 flex items-center justify-between shadow-lg animate-fadeIn text-xs sm:text-sm font-black">
+                  <div className="flex items-center gap-2.5">
+                    <CheckCircle2 className="w-5 h-5 shrink-0 text-white" />
+                    <span>{actionStatusToast}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setActionStatusToast("")}
+                    className="text-white/80 hover:text-white p-1 rounded-full cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
               
               {/* TAB 1: TOPIC & PORTFOLIO MANAGEMENT */}
               {activeTab === "topics" && (
@@ -1869,9 +1889,9 @@ export default function AdminPanel({
                                     if (file) {
                                       try {
                                         setIsUploading(true);
-                                        setUploadStatusMessage("در حال فشرده‌سازی عکس نمونه‌کار...");
-                                        const compressed = await compressImageFile(file, 1280, 1280, 0.82);
-                                        setNewPhotoImage(compressed);
+                                        setUploadStatusMessage("در حال آپلود و ذخیره مستقیم عکس روی سرور...");
+                                        const uploaded = await uploadImageDirectly(file, "gallery", `sample-${Date.now()}`, 1280, 1280, 0.82);
+                                        setNewPhotoImage(uploaded.url);
                                         setIsUploading(false);
                                         setUploadStatusMessage("");
                                       } catch (err: any) {
@@ -1891,7 +1911,7 @@ export default function AdminPanel({
                                   alt="Preview"
                                   className="w-10 h-10 object-cover rounded-lg border border-gray-300"
                                 />
-                                <span className="text-[10px] text-emerald-700 font-bold">✓ عکس انتخاب شد</span>
+                                <span className="text-[10px] text-emerald-700 font-bold">✓ عکس ذخیره شد و آماده ثبت است</span>
                               </div>
                             )}
                           </div>
@@ -1921,10 +1941,21 @@ export default function AdminPanel({
 
                       {/* EXISTING PHOTOS LIST IN THIS TOPIC */}
                       <div className="space-y-3">
-                        <div className="flex items-center justify-between">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-100 pb-2">
                           <h4 className="text-xs sm:text-sm font-black text-[#2C1E14]">
                             تصاویر موجود در این لاین ({topicPhotos.length} نمونه‌کار {currentTopic.coverImage ? "+ ۱ کاور اصلی" : "+ بدون کاور"}):
                           </h4>
+                          {topicPhotos.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={handleDeleteAllPhotosInTopic}
+                              className="text-red-600 hover:text-white hover:bg-red-600 bg-red-50 border border-red-200 px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 shadow-2xs self-end sm:self-center"
+                              title="حذف کلیه تصاویر نمونه‌کارهای قبلی این لاین"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span>حذف تمام نمونه‌کارهای این لاین</span>
+                            </button>
+                          )}
                         </div>
 
                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
@@ -2452,49 +2483,142 @@ export default function AdminPanel({
 
                             {/* Visual Previews: Thumbnail & Samples */}
                             <div className="space-y-3">
-                              <div className="flex items-center gap-3 bg-gray-50/80 p-2.5 rounded-2xl border border-gray-100">
-                                <img
-                                  src={currentCover}
-                                  alt="تامبنیل"
-                                  referrerPolicy="no-referrer"
-                                  className="w-16 h-16 rounded-xl object-cover border border-[#06808B]/20 shadow-xs shrink-0 bg-white"
-                                />
-                                <div className="space-y-0.5">
-                                  <span className="text-[11px] font-black text-rose-700 bg-rose-50 px-2 py-0.5 rounded-md inline-block">
-                                    ★ تامبنیل / کاور اصلی:
-                                  </span>
-                                  <p className="text-xs font-mono font-bold text-gray-700 dir-ltr text-left">
-                                    thumbnail.jpg
-                                  </p>
-                                  <p className="text-[11px] text-gray-500 font-semibold">
-                                    در کارت تاپیک‌ها و معرفی لاین نمایش می‌یابد.
-                                  </p>
+                              <div className="flex items-center justify-between bg-gray-50/80 p-2.5 rounded-2xl border border-gray-100">
+                                <div className="flex items-center gap-3">
+                                  {currentCover ? (
+                                    <img
+                                      src={resolveImageUrl(currentCover)}
+                                      alt="تامبنیل"
+                                      referrerPolicy="no-referrer"
+                                      className="w-16 h-16 rounded-xl object-cover border border-[#06808B]/20 shadow-xs shrink-0 bg-white"
+                                    />
+                                  ) : (
+                                    <div className="w-16 h-16 rounded-xl border border-dashed border-gray-300 flex items-center justify-center text-gray-400 text-[10px] shrink-0 bg-white">
+                                      بدون کاور
+                                    </div>
+                                  )}
+                                  <div className="space-y-0.5">
+                                    <span className="text-[11px] font-black text-rose-700 bg-rose-50 px-2 py-0.5 rounded-md inline-block">
+                                      ★ تامبنیل / کاور اصلی:
+                                    </span>
+                                    <p className="text-xs font-mono font-bold text-gray-700 dir-ltr text-left">
+                                      {currentCover ? "فعال" : "تنظیم نشده"}
+                                    </p>
+                                    <p className="text-[11px] text-gray-500 font-semibold">
+                                      در کارت تاپیک‌ها و معرفی لاین نمایش می‌یابد.
+                                    </p>
+                                  </div>
                                 </div>
+
+                                {sec.folder !== "branding" && topicObj && (
+                                  <div className="flex flex-col gap-1.5 shrink-0">
+                                    <label className="text-[10px] text-[#06808B] hover:text-[#056f79] font-black bg-[#06808B]/10 hover:bg-[#06808B]/20 px-2.5 py-1 rounded-lg transition-colors cursor-pointer flex items-center gap-1">
+                                      <Upload className="w-3 h-3" />
+                                      <span>آپلود کاور</span>
+                                      <input
+                                        type="file"
+                                        accept="image/*"
+                                        className="hidden"
+                                        onChange={(e) => {
+                                          const file = e.target.files?.[0];
+                                          if (file) {
+                                            setSelectedTopicCategory(sec.category);
+                                            handleDirectCoverUpload(file);
+                                          }
+                                          e.target.value = "";
+                                        }}
+                                      />
+                                    </label>
+                                    {topicObj.coverImage && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setSelectedTopicCategory(sec.category);
+                                          handleRemoveCover();
+                                        }}
+                                        className="text-[10px] text-red-600 hover:text-red-700 font-black bg-red-50 hover:bg-red-100 px-2.5 py-1 rounded-lg transition-colors cursor-pointer flex items-center gap-1 border border-red-200"
+                                      >
+                                        <Trash2 className="w-3 h-3" />
+                                        <span>حذف کاور</span>
+                                      </button>
+                                    )}
+                                  </div>
+                                )}
                               </div>
 
-                              {/* Inner content photos */}
+                              {/* Inner content photos with direct deletion and upload */}
                               <div className="space-y-1.5">
-                                <span className="text-[11px] font-black text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md inline-block">
-                                  تصاویر محتوای داخلی ({topicGallery.length > 0 ? topicGallery.length : sec.samples.length} عکس نمونه‌کار):
-                                </span>
-                                <div className="flex gap-2 overflow-x-auto py-1 scrollbar-none">
-                                  {(topicGallery.length > 0
-                                    ? topicGallery.map((g) => g.image)
-                                    : sec.samples
-                                  ).map((imgUrl, idx) => (
-                                    <div key={idx} className="relative group shrink-0">
-                                      <img
-                                        src={imgUrl}
-                                        alt={`نمونه‌کار ${idx + 1}`}
-                                        referrerPolicy="no-referrer"
-                                        className="w-14 h-14 rounded-xl object-cover border border-gray-200 shadow-2xs bg-white"
-                                      />
-                                      <span className="absolute bottom-1 right-1 bg-black/70 text-white text-[9px] font-mono font-bold px-1 rounded">
-                                        {idx + 1}.jpg
-                                      </span>
+                                <div className="flex items-center justify-between">
+                                  <span className="text-[11px] font-black text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md inline-block">
+                                    تصاویر محتوای داخلی ({topicGallery.length} عکس نمونه‌کار):
+                                  </span>
+
+                                  {sec.folder !== "branding" && (
+                                    <div className="flex items-center gap-2">
+                                      <label className="text-[10px] text-[#06808B] hover:text-[#056f79] font-black bg-[#06808B]/10 hover:bg-[#06808B]/20 px-2 py-0.5 rounded-md cursor-pointer flex items-center gap-1 transition-colors">
+                                        <Upload className="w-3 h-3" />
+                                        <span>آپلود عکس جدید</span>
+                                        <input
+                                          type="file"
+                                          accept="image/*"
+                                          className="hidden"
+                                          onChange={(e) => {
+                                            const file = e.target.files?.[0];
+                                            if (file) {
+                                              setSelectedTopicCategory(sec.category);
+                                              handleDirectSlotUpload(file);
+                                            }
+                                            e.target.value = "";
+                                          }}
+                                        />
+                                      </label>
+                                      {topicGallery.length > 0 && (
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setSelectedTopicCategory(sec.category);
+                                            handleDeleteAllPhotosInTopic();
+                                          }}
+                                          className="text-[10px] text-red-600 hover:text-red-700 font-black bg-red-50 hover:bg-red-100 px-2 py-0.5 rounded-md cursor-pointer flex items-center gap-1 border border-red-200 transition-colors"
+                                          title="حذف کلیه تصاویر این لاین"
+                                        >
+                                          <Trash2 className="w-3 h-3" />
+                                          <span>حذف همه</span>
+                                        </button>
+                                      )}
                                     </div>
-                                  ))}
+                                  )}
                                 </div>
+
+                                {topicGallery.length > 0 ? (
+                                  <div className="flex gap-2 overflow-x-auto py-1 scrollbar-none">
+                                    {topicGallery.map((g, idx) => (
+                                      <div key={g.id || idx} className="relative group shrink-0">
+                                        <img
+                                          src={resolveImageUrl(g.image)}
+                                          alt={g.title || `نمونه‌کار ${idx + 1}`}
+                                          referrerPolicy="no-referrer"
+                                          className="w-14 h-14 rounded-xl object-cover border border-gray-200 shadow-2xs bg-white"
+                                        />
+                                        <button
+                                          type="button"
+                                          onClick={() => handleDeleteGalleryItem(g.id)}
+                                          className="absolute top-1 left-1 bg-red-600/90 hover:bg-red-700 text-white p-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity shadow-md hover:scale-110 cursor-pointer z-10"
+                                          title="حذف این نمونه‌کار"
+                                        >
+                                          <Trash2 className="w-3 h-3" />
+                                        </button>
+                                        <span className="absolute bottom-1 right-1 bg-black/70 text-white text-[8px] font-mono font-bold px-1 rounded">
+                                          {idx + 1}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <div className="py-3 px-2 text-center text-[11px] text-gray-500 font-medium bg-gray-50/70 rounded-xl border border-dashed border-gray-200">
+                                    هیچ نمونه‌کاری در این لاین وجود ندارد. می‌توانید عکس‌های جدید بارگذاری نمایید.
+                                  </div>
+                                )}
                               </div>
                             </div>
                           </div>

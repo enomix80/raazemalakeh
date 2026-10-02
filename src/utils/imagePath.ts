@@ -2,8 +2,8 @@
  * Helper to safely resolve image URLs across local development,
  * GitHub Pages (subpaths), and production environments.
  */
-export function resolveImageUrl(url?: string | null, fallback: string = "./assets/branding/logo.jpg"): string {
-  if (!url || typeof url !== "string") {
+export function resolveImageUrl(url?: string | null, fallback: string = ""): string {
+  if (url === undefined || url === null) {
     return fallback;
   }
 

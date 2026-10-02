@@ -50,8 +50,66 @@ function readStoredData() {
   return null;
 }
 
+// Helper to save base64 data to real file on disk
+function saveBase64ToFile(base64Str: string, prefix = "img"): string {
+  if (!base64Str || typeof base64Str !== "string" || !base64Str.startsWith("data:image/")) {
+    return base64Str;
+  }
+  try {
+    const matches = base64Str.match(/^data:image\/([a-zA-Z0-9+.-]+);base64,(.+)$/);
+    if (!matches) return base64Str;
+
+    const mime = matches[1].toLowerCase();
+    const ext = mime === "png" ? ".png" : mime === "webp" ? ".webp" : ".jpg";
+    const fileName = `${prefix}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}${ext}`;
+    const filePath = path.join(UPLOADS_DIR, fileName);
+    const buffer = Buffer.from(matches[2], "base64");
+    fs.writeFileSync(filePath, buffer);
+
+    const mirrorDirs = [
+      path.resolve(__dirname, "dist/uploads"),
+      path.resolve(__dirname, "docs/uploads"),
+      path.resolve(__dirname, "public/uploads")
+    ];
+    for (const d of mirrorDirs) {
+      try {
+        if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true });
+        fs.writeFileSync(path.join(d, fileName), buffer);
+      } catch {}
+    }
+    return `./uploads/${fileName}`;
+  } catch (err) {
+    console.error("Error saving base64 to file:", err);
+    return base64Str;
+  }
+}
+
 // Helper to write data safely and atomically
 function writeStoredData(data: any) {
+  if (!data || typeof data !== "object") return;
+
+  // Auto-convert any base64 images in topics, gallery, salonInfo, services
+  if (data.salonInfo) {
+    ["logoUrl", "topSmallBannerUrl", "heroBannerUrl", "backgroundBannerUrl"].forEach((k) => {
+      if (data.salonInfo[k]) data.salonInfo[k] = saveBase64ToFile(data.salonInfo[k], `branding-${k}`);
+    });
+  }
+  if (Array.isArray(data.topics)) {
+    data.topics.forEach((t: any, i: number) => {
+      if (t.coverImage) t.coverImage = saveBase64ToFile(t.coverImage, `topic-${t.category || i}`);
+    });
+  }
+  if (Array.isArray(data.gallery)) {
+    data.gallery.forEach((g: any, i: number) => {
+      if (g.image) g.image = saveBase64ToFile(g.image, `gallery-${g.category || i}`);
+    });
+  }
+  if (Array.isArray(data.services)) {
+    data.services.forEach((s: any, i: number) => {
+      if (s.image) s.image = saveBase64ToFile(s.image, `service-${s.id || i}`);
+    });
+  }
+
   const serialized = JSON.stringify(data, null, 2);
   const tempFile = `${DATA_FILE}.tmp`;
   fs.writeFileSync(tempFile, serialized, "utf-8");
@@ -382,7 +440,8 @@ app.post("/api/app-data", (req, res) => {
     res.json({
       success: true,
       message: "کلیه اطلاعات سالن با موفقیت به صورت دائمی در سرور ثبت شد",
-      updatedAt: updated.updatedAt
+      updatedAt: updated.updatedAt,
+      data: updated
     });
   } catch (err: any) {
     console.error("Server save error:", err);
