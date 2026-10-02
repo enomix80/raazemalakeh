@@ -38,6 +38,7 @@ import {
 import { Service, GalleryItem, GalleryTopic, SalonInfo, AdminCredentials } from "../types";
 import { DEFAULT_ADMIN_CREDENTIALS } from "../data";
 import { compressImageFile } from "../utils/imageCompressor";
+import { uploadImageDirectly } from "../utils/imageUploadService";
 import { saveAllAppData } from "../utils/persistentStorage";
 import { resolveImageUrl } from "../utils/imagePath";
 import {
@@ -506,38 +507,21 @@ export default function AdminPanel({
   const handleDirectServiceImageUpload = async (serviceId: string, file: File) => {
     try {
       setIsUploading(true);
-      setUploadStatusMessage("در حال آماده‌سازی و بهینه‌سازی تامبنیل خدمت...");
-      const compressed = await compressImageFile(file, 1000, 1000, 0.85);
-
-      let finalUrl = compressed;
-      try {
-        const uploadRes = await fetch("/api/upload-image", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            image: compressed,
-            folder: "services",
-            fileName: `service-${serviceId}`
-          })
-        });
-        const uploadJson = await uploadRes.json();
-        if (uploadJson.success && uploadJson.url) {
-          finalUrl = uploadJson.url;
-        }
-      } catch {}
+      setUploadStatusMessage("در حال آپلود و ذخیره مستقیم تامبنیل خدمت روی سرور...");
+      const uploaded = await uploadImageDirectly(file, "services", `service-${serviceId}`, 1000, 1000, 0.85);
 
       const updated = services.map((s) =>
-        s.id === serviceId ? { ...s, image: finalUrl } : s
+        s.id === serviceId ? { ...s, image: uploaded.url } : s
       );
       await syncServicesImmediately(updated);
 
       if (editingServiceModal && editingServiceModal.id === serviceId) {
-        setEditingServiceModal({ ...editingServiceModal, image: finalUrl });
+        setEditingServiceModal({ ...editingServiceModal, image: uploaded.url });
       }
 
       setIsUploading(false);
       setUploadStatusMessage("");
-      alert("✅ تصویر تامبنیل خدمت با موفقیت به‌روزرسانی شد!");
+      alert("✅ تصویر تامبنیل خدمت با موفقیت به‌روزرسانی شد و برای همه با لینک قابل مشاهده است!");
     } catch (err: any) {
       setIsUploading(false);
       setUploadStatusMessage("");
@@ -600,25 +584,25 @@ export default function AdminPanel({
     }
   };
 
-  // Direct Cover Upload from PC/Phone with automatic compression
+  // Direct Cover Upload from PC/Phone with automatic compression & server/cloud upload
   const handleDirectCoverUpload = async (file: File) => {
     try {
       setIsUploading(true);
-      setUploadStatusMessage("در حال بهینه‌سازی و ذخیره عکس کاور تاپیک...");
-      const compressed = await compressImageFile(file, 1280, 1280, 0.82);
+      setUploadStatusMessage("در حال آپلود و ذخیره مستقیم عکس کاور تاپیک بر روی سرور...");
+      const uploaded = await uploadImageDirectly(file, "topics", `topic-${currentTopic?.category || "cover"}`, 1280, 1280, 0.82);
 
       const updatedTopics = topics.map((t) => {
         if (t.category === selectedTopicCategory || t.id === currentTopic?.id) {
           return {
             ...t,
-            coverImage: compressed
+            coverImage: uploaded.url
           };
         }
         return t;
       });
 
       onUpdateTopics(updatedTopics);
-      setEditTopicCover(compressed);
+      setEditTopicCover(uploaded.url);
       await saveAllAppData({
         topics: updatedTopics,
         salonInfo,
@@ -627,7 +611,7 @@ export default function AdminPanel({
       });
       setIsUploading(false);
       setUploadStatusMessage("");
-      alert("✅ عکس کاور اصلی تاپیک با موفقیت آپلود شد و به صورت دائمی ثبت گردید!");
+      alert("✅ عکس کاور تاپیک با موفقیت آپلود شد و بلافاصله برای تمامی بازدیدکنندگان فعال گردید!");
     } catch (err: any) {
       setIsUploading(false);
       setUploadStatusMessage("");
@@ -665,19 +649,26 @@ export default function AdminPanel({
     if (files.length === 0) return;
     try {
       setIsUploading(true);
-      setUploadStatusMessage(`در حال آماده‌سازی و بهینه‌سازی ${files.length} تصویر...`);
+      setUploadStatusMessage(`در حال آپلود و بهینه‌سازی مستقیم ${files.length} تصویر بر روی سرور...`);
 
       const newItems: GalleryItem[] = [];
       const topicTitle = currentTopic?.title || selectedTopicCategory;
 
       for (let i = 0; i < files.length; i++) {
-        setUploadStatusMessage(`در حال فشرده‌سازی عکس ${i + 1} از ${files.length}...`);
-        const compressed = await compressImageFile(files[i], 1280, 1280, 0.82);
+        setUploadStatusMessage(`در حال آپلود مستقیم عکس ${i + 1} از ${files.length}...`);
+        const uploaded = await uploadImageDirectly(
+          files[i],
+          "gallery",
+          `sample-${Date.now()}-${i}`,
+          1280,
+          1280,
+          0.82
+        );
         newItems.push({
           id: "g-" + (Date.now() + i).toString(),
           title: `نمونه کار ${topicTitle}`,
           category: selectedTopicCategory,
-          image: compressed,
+          image: uploaded.url,
           description: "",
           createdAt: new Date().toISOString()
         });
@@ -693,7 +684,7 @@ export default function AdminPanel({
       });
       setIsUploading(false);
       setUploadStatusMessage("");
-      alert(`✅ ${files.length} نمونه‌کار با موفقیت به لاین «${topicTitle}» اضافه و به صورت دائمی ثبت شد!`);
+      alert(`✅ ${files.length} نمونه‌کار با موفقیت مستقیم روی سرور آپلود شد و بدون نیاز به گیت‌هاب برای همه کاربران با لینک قابل مشاهده است!`);
     } catch (err: any) {
       setIsUploading(false);
       setUploadStatusMessage("");
@@ -961,16 +952,16 @@ export default function AdminPanel({
     handleMasterFinalSave();
   };
 
-  // Direct Background Banner Upload with Compression
+  // Direct Background Banner Upload with Server & Cloud Upload
   const handleDirectBackgroundBannerUpload = async (file: File) => {
     try {
       setIsUploading(true);
-      setUploadStatusMessage("در حال پردازش و ذخیره دائمی بنر بک‌گراند...");
-      const compressed = await compressImageFile(file, 1600, 1000, 0.80);
-      await updateFieldAndSync("backgroundBannerUrl", compressed);
+      setUploadStatusMessage("در حال آپلود و ذخیره مستقیم بنر بک‌گراند روی سرور...");
+      const uploaded = await uploadImageDirectly(file, "branding", "top_banner", 1600, 1000, 0.82);
+      await updateFieldAndSync("backgroundBannerUrl", uploaded.url);
       setIsUploading(false);
       setUploadStatusMessage("");
-      alert("✅ تصویر بنر بک‌گراند بارگذاری شد و بلافاصله بر روی سایت ذخیره و تثبیت گردید!");
+      alert("✅ تصویر بنر بک‌گراند آپلود شد و بلافاصله بر روی سایت ذخیره گردید و برای همه با لینک قابل مشاهده است!");
     } catch (err: any) {
       setIsUploading(false);
       setUploadStatusMessage("");
@@ -978,16 +969,16 @@ export default function AdminPanel({
     }
   };
 
-  // Direct Top-Right Small Banner Upload with Compression
+  // Direct Top-Right Small Banner / Logo Upload with Server & Cloud Upload
   const handleDirectTopSmallBannerUpload = async (file: File) => {
     try {
       setIsUploading(true);
-      setUploadStatusMessage("در حال پردازش و ذخیره دائمی بنر کوچک سمت راست بالا...");
-      const compressed = await compressImageFile(file, 600, 600, 0.85);
-      await updateFieldAndSync("topSmallBannerUrl", compressed);
+      setUploadStatusMessage("در حال آپلود و ذخیره مستقیم بنر کوچک / لوگوی سالن روی سرور...");
+      const uploaded = await uploadImageDirectly(file, "branding", "logo", 600, 600, 0.85);
+      await updateFieldAndSync("topSmallBannerUrl", uploaded.url);
       setIsUploading(false);
       setUploadStatusMessage("");
-      alert("✅ نشان و لوگوی سالن با موفقیت تغییر کرد و به صورت دائمی ثبت شد!");
+      alert("✅ نشان و لوگوی سالن مستقیماً روی سرور آپلود شد و برای تمامی بازدیدکنندگان لینک فعال گردید!");
     } catch (err: any) {
       setIsUploading(false);
       setUploadStatusMessage("");
@@ -995,16 +986,16 @@ export default function AdminPanel({
     }
   };
 
-  // Direct Hero Image Banner Upload with Compression
+  // Direct Hero Image Banner Upload with Server & Cloud Upload
   const handleDirectHeroBannerUpload = async (file: File) => {
     try {
       setIsUploading(true);
-      setUploadStatusMessage("در حال پردازش و ذخیره دائمی تصویر بنر هیرو...");
-      const compressed = await compressImageFile(file, 1280, 900, 0.80);
-      await updateFieldAndSync("heroBannerUrl", compressed);
+      setUploadStatusMessage("در حال آپلود و ذخیره مستقیم بنر هیرو روی سرور...");
+      const uploaded = await uploadImageDirectly(file, "branding", "hero", 1400, 900, 0.82);
+      await updateFieldAndSync("heroBannerUrl", uploaded.url);
       setIsUploading(false);
       setUploadStatusMessage("");
-      alert("✅ تصویر بنر هیرو (معرفی سالن) با موفقیت تغییر یافت و ذخیره شد!");
+      alert("✅ تصویر بنر هیرو (معرفی سالن) با موفقیت آپلود شد و بدون نیاز به گیت‌هاب بر روی سایت قرار گرفت!");
     } catch (err: any) {
       setIsUploading(false);
       setUploadStatusMessage("");
@@ -1086,11 +1077,11 @@ export default function AdminPanel({
                   const file = e.target.files?.[0];
                   if (file) {
                     try {
-                      const base64Logo = await compressImageFile(file, 600, 600, 0.85);
-                      await updateFieldAndSync("topSmallBannerUrl", base64Logo);
-                      alert("✅ لوگوی سالن با موفقیت تغییر کرد و به صورت دائمی ثبت شد!");
+                      const uploaded = await uploadImageDirectly(file, "branding", "logo", 600, 600, 0.85);
+                      await updateFieldAndSync("topSmallBannerUrl", uploaded.url);
+                      alert("✅ لوگوی سالن با موفقیت تغییر کرد و مستقیماً روی سرور ثبت شد!");
                     } catch (err: any) {
-                      alert(err.message || "خطا در فشرده‌سازی تصویر لوگو");
+                      alert(err.message || "خطا در آپلود تصویر لوگو");
                     }
                   }
                 }}
@@ -1150,47 +1141,26 @@ export default function AdminPanel({
                   )}
                 </div>
 
-                {/* Master Final Save Button */}
+                {/* Master Direct Save & Cloud Publish Button */}
                 <button
                   type="button"
                   onClick={handleMasterFinalSave}
                   disabled={isSavingFinal}
-                  className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 active:scale-95 text-white px-3 sm:px-4 py-2 sm:py-2.5 rounded-2xl text-xs sm:text-sm font-black shadow-lg flex items-center gap-1.5 cursor-pointer transition-all border border-emerald-300/40"
-                  title="ثبت نهایی و ماندگاری قطعی کلیه تغییرات بر روی مرورگر"
+                  className="bg-gradient-to-r from-emerald-600 via-teal-600 to-[#06808B] hover:from-emerald-500 hover:to-teal-500 active:scale-95 text-white px-3 sm:px-5 py-2 sm:py-2.5 rounded-2xl text-xs sm:text-sm font-black shadow-lg flex items-center gap-2 cursor-pointer transition-all border border-emerald-300/40"
+                  title="انتشار و ذخیره مستقیم و فوری تمامی تغییرات و تصاویر روی سایت برای همه کاربران"
                 >
                   {isSavingFinal ? (
                     <>
                       <Sparkles className="w-4 h-4 animate-spin text-emerald-200" />
-                      <span>در حال ثبت...</span>
+                      <span>در حال انتشار روی سایت...</span>
                     </>
                   ) : (
                     <>
                       <Save className="w-4 h-4 text-emerald-200" />
-                      <span>ثبت تغییرات</span>
+                      <span>انتشار و ذخیره مستقیم روی سایت</span>
                       {hasUnsavedChanges && (
-                        <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                        <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping" />
                       )}
-                    </>
-                  )}
-                </button>
-
-                {/* Push to GitHub Button */}
-                <button
-                  type="button"
-                  onClick={handlePushToGitHub}
-                  disabled={isPushingGitHub}
-                  className="bg-gradient-to-r from-purple-700 to-indigo-700 hover:from-purple-600 hover:to-indigo-600 active:scale-95 text-white px-3 sm:px-4 py-2 sm:py-2.5 rounded-2xl text-xs sm:text-sm font-black shadow-lg flex items-center gap-1.5 cursor-pointer transition-all border border-purple-400/40"
-                  title="ذخیره مستقیم همه تغییرات و تصاویر در مخزن گیت‌هاب برای همه کاربران"
-                >
-                  {isPushingGitHub ? (
-                    <>
-                      <Sparkles className="w-4 h-4 animate-spin text-purple-200" />
-                      <span className="hidden sm:inline">در حال ارسال...</span>
-                    </>
-                  ) : (
-                    <>
-                      <GitBranch className="w-4 h-4 text-purple-200" />
-                      <span>ارسال به گیت‌هاب</span>
                     </>
                   )}
                 </button>
@@ -1358,12 +1328,27 @@ export default function AdminPanel({
                 }`}
               >
                 <GitBranch className="w-4 h-4 shrink-0 text-purple-600" />
-                <span className="font-extrabold">همگام‌سازی گیت‌هاب</span>
+                <span className="font-extrabold">پشتیبان‌گیری گیت‌هاب (اختیاری)</span>
               </button>
             </div>
 
             {/* Main Content Area */}
             <div className="flex-grow p-5 sm:p-6 overflow-y-auto text-right bg-white/30">
+              
+              {/* Cloud Sync Active Status Notice */}
+              <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-300/60 px-4 py-3 rounded-2xl mb-5 flex items-center justify-between gap-3 shadow-xs">
+                <div className="flex items-center gap-2.5 text-emerald-900 text-xs font-bold">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                  <span>
+                    <strong>انتشار ابری زنده فعال است:</strong> تصاویر و تغییرات شما مستقیماً روی سرور و پایگاه داده ابری ذخیره می‌شوند و برای هر شخصی که با لینک وارد شود بلافاصله قابل مشاهده است (بدون نیاز به گیت‌هاب).
+                  </span>
+                </div>
+                <div className="shrink-0 hidden md:block">
+                  <span className="bg-emerald-600 text-white text-[10px] font-black px-2.5 py-1 rounded-full">
+                    ✓ اتصال مستقیم
+                  </span>
+                </div>
+              </div>
               
               {/* TAB 1: TOPIC & PORTFOLIO MANAGEMENT */}
               {activeTab === "topics" && (

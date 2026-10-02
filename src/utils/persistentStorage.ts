@@ -202,6 +202,54 @@ export async function loadInitialAppData(): Promise<CompleteAppData> {
         loadedFromFirestore = true;
       }
     }
+
+    // If main doc wasn't sufficient, try reading subdocuments
+    if (!serverData || !serverData.salonInfo || !serverData.gallery) {
+      const [sInfoDoc, topicsDoc, servicesDoc, metaDoc] = await Promise.all([
+        getDoc(doc(db, "appData", "salonInfo")),
+        getDoc(doc(db, "appData", "topics")),
+        getDoc(doc(db, "appData", "services")),
+        getDoc(doc(db, "appData", "gallery_meta"))
+      ]);
+
+      const subData: Partial<CompleteAppData> = serverData || {};
+      if (sInfoDoc.exists() && sInfoDoc.data().data) {
+        subData.salonInfo = sInfoDoc.data().data;
+        loadedFromFirestore = true;
+      }
+      if (topicsDoc.exists() && topicsDoc.data().data) {
+        subData.topics = topicsDoc.data().data;
+        loadedFromFirestore = true;
+      }
+      if (servicesDoc.exists() && servicesDoc.data().data) {
+        subData.services = servicesDoc.data().data;
+        loadedFromFirestore = true;
+      }
+
+      if (metaDoc.exists()) {
+        const meta = metaDoc.data();
+        const totalChunks = Number(meta.totalChunks) || 0;
+        const chunkFetches: Promise<any>[] = [];
+        for (let i = 0; i < totalChunks; i++) {
+          chunkFetches.push(getDoc(doc(db, "appData", `gallery_chunk_${i}`)));
+        }
+        const chunkDocs = await Promise.all(chunkFetches);
+        let assembledGallery: GalleryItem[] = [];
+        for (const cd of chunkDocs) {
+          if (cd.exists() && Array.isArray(cd.data().items)) {
+            assembledGallery.push(...cd.data().items);
+          }
+        }
+        if (assembledGallery.length > 0) {
+          subData.gallery = assembledGallery;
+          loadedFromFirestore = true;
+        }
+      }
+
+      if (loadedFromFirestore) {
+        serverData = subData;
+      }
+    }
   } catch (err) {
     console.warn("Could not reach Firestore on boot, checking backend server / static files:", err);
   }
@@ -392,14 +440,35 @@ export async function saveAllAppData(data: {
 
     // 2. Synchronize to Google Cloud Firestore (Primary global cloud database for all visitors)
     try {
+      const nowIso = new Date().toISOString();
       const mainDoc = doc(db, "appData", "main");
       await setDoc(mainDoc, {
         salonInfo: updatedPayload.salonInfo,
         topics: updatedPayload.topics,
         gallery: updatedPayload.gallery,
         services: updatedPayload.services,
-        updatedAt: new Date().toISOString()
+        updatedAt: nowIso
       });
+
+      // Also save to individual Firestore subdocuments so large image datasets never exceed 1MB limits
+      await Promise.all([
+        setDoc(doc(db, "appData", "salonInfo"), { data: updatedPayload.salonInfo, updatedAt: nowIso }),
+        setDoc(doc(db, "appData", "topics"), { data: updatedPayload.topics, updatedAt: nowIso }),
+        setDoc(doc(db, "appData", "services"), { data: updatedPayload.services, updatedAt: nowIso })
+      ]);
+
+      // Chunk gallery in sets of 10 items
+      const galleryItems = updatedPayload.gallery || [];
+      const chunkSize = 10;
+      const totalChunks = Math.ceil(galleryItems.length / chunkSize);
+      const chunkPromises: Promise<any>[] = [
+        setDoc(doc(db, "appData", "gallery_meta"), { totalChunks, totalItems: galleryItems.length, updatedAt: nowIso })
+      ];
+      for (let i = 0; i < totalChunks; i++) {
+        const chunk = galleryItems.slice(i * chunkSize, (i + 1) * chunkSize);
+        chunkPromises.push(setDoc(doc(db, "appData", `gallery_chunk_${i}`), { items: chunk, chunkIndex: i }));
+      }
+      await Promise.all(chunkPromises);
     } catch (firestoreErr) {
       console.warn("Firestore cloud save warning:", firestoreErr);
     }

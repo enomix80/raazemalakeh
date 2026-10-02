@@ -29,6 +29,14 @@ if (!fs.existsSync(UPLOADS_DIR)) {
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
+// Explicit static mounts so uploaded images are immediately accessible in dev and production
+app.use("/uploads", express.static(UPLOADS_DIR));
+if (fs.existsSync(path.resolve(__dirname, "dist/uploads"))) {
+  app.use("/uploads", express.static(path.resolve(__dirname, "dist/uploads")));
+}
+app.use("/assets", express.static(path.resolve(__dirname, "public/assets")));
+app.use("/assets", express.static(path.resolve(__dirname, "assets")));
+
 // Helper to read data safely
 function readStoredData() {
   if (fs.existsSync(DATA_FILE)) {
@@ -283,6 +291,21 @@ app.post("/api/upload-image", (req, res) => {
 
     const filePath = path.join(targetDir, generatedFileName);
     fs.writeFileSync(filePath, Buffer.from(base64Data, "base64"));
+
+    // Ensure mirror to dist/uploads and docs/uploads
+    const mirrorDirs = [
+      path.resolve(__dirname, "dist/uploads"),
+      path.resolve(__dirname, "docs/uploads"),
+      path.resolve(__dirname, "public/uploads")
+    ];
+    for (const d of mirrorDirs) {
+      if (d !== targetDir) {
+        try {
+          if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true });
+          fs.writeFileSync(path.join(d, generatedFileName), Buffer.from(base64Data, "base64"));
+        } catch {}
+      }
+    }
 
     // Also mirror to root /assets/folder if target was in public/assets
     if (folder) {
