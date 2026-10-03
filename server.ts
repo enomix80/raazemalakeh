@@ -61,7 +61,8 @@ function saveBase64ToFile(base64Str: string, prefix = "img"): string {
 
     const mime = matches[1].toLowerCase();
     const ext = mime === "png" ? ".png" : mime === "webp" ? ".webp" : ".jpg";
-    const fileName = `${prefix}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}${ext}`;
+    const safePrefix = (prefix || "img").replace(/[^a-zA-Z0-9_-]/g, "") || "img";
+    const fileName = `${safePrefix}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}${ext}`;
     const filePath = path.join(UPLOADS_DIR, fileName);
     const buffer = Buffer.from(matches[2], "base64");
     fs.writeFileSync(filePath, buffer);
@@ -69,7 +70,8 @@ function saveBase64ToFile(base64Str: string, prefix = "img"): string {
     const mirrorDirs = [
       path.resolve(__dirname, "dist/uploads"),
       path.resolve(__dirname, "docs/uploads"),
-      path.resolve(__dirname, "public/uploads")
+      path.resolve(__dirname, "public/uploads"),
+      path.resolve(__dirname, "uploads")
     ];
     for (const d of mirrorDirs) {
       try {
@@ -354,7 +356,8 @@ app.post("/api/upload-image", (req, res) => {
     const mirrorDirs = [
       path.resolve(__dirname, "dist/uploads"),
       path.resolve(__dirname, "docs/uploads"),
-      path.resolve(__dirname, "public/uploads")
+      path.resolve(__dirname, "public/uploads"),
+      path.resolve(__dirname, "uploads")
     ];
     for (const d of mirrorDirs) {
       if (d !== targetDir) {

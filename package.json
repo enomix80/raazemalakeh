@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "tsx server.ts",
     "start": "tsx server.ts",
-    "build": "vite build && cp -f dist/assets/main.js assets/main.js && cp -f dist/assets/style.css assets/style.css && cp -f dist/assets/main.js public/assets/main.js && cp -f dist/assets/style.css public/assets/style.css && mkdir -p dist/data docs/data && cp -f data/app-data.json dist/data/app-data.json && cp -f data/app-data.json dist/app-data.json && cp -f dist/index.html dist/404.html && rm -rf docs && cp -r dist docs && touch docs/.nojekyll && cp -f dist/index.html 404.html",
+    "build": "cp -f data/app-data.json public/app-data.json && mkdir -p public/data && cp -f data/app-data.json public/data/app-data.json && vite build && cp -f dist/assets/main.js assets/main.js && cp -f dist/assets/style.css assets/style.css && cp -f dist/assets/main.js public/assets/main.js && cp -f dist/assets/style.css public/assets/style.css && mkdir -p dist/data docs/data uploads && cp -f data/app-data.json dist/data/app-data.json && cp -f data/app-data.json dist/app-data.json && cp -r public/uploads/* uploads/ 2>/dev/null || true && cp -f dist/index.html dist/404.html && rm -rf docs && cp -r dist docs && touch docs/.nojekyll && touch .nojekyll && cp -f dist/index.html 404.html",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js docs",
     "lint": "tsc --noEmit"

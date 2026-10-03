@@ -128,6 +128,7 @@ export interface CompleteAppData {
   gallery: GalleryItem[];
   services: Service[];
   adminCredentials?: AdminCredentials;
+  updatedAt?: string;
 }
 
 // In-memory runtime cache
@@ -135,7 +136,8 @@ let inMemoryAppData: CompleteAppData = {
   salonInfo: SALON_INFO,
   topics: INITIAL_GALLERY_TOPICS,
   gallery: INITIAL_GALLERY,
-  services: INITIAL_SERVICES
+  services: INITIAL_SERVICES,
+  updatedAt: ""
 };
 
 // Debounce timer for server background sync
@@ -244,22 +246,19 @@ export async function loadInitialAppData(): Promise<CompleteAppData> {
     }
   }
 
-  // 2.2 Optional Firestore check ONLY if Firestore updatedAt is strictly newer than server disk
-  try {
-    const cloudDoc = await getDoc(doc(db, "appData", "main"));
-    if (cloudDoc.exists()) {
-      const cData = cloudDoc.data();
-      if (cData && (cData.salonInfo || cData.gallery || cData.services || cData.topics)) {
-        const cloudTime = cData.updatedAt || "";
-        const serverTime = serverData?.updatedAt || "";
-        // Only adopt Firestore data if it is strictly NEWER than what is already saved on server disk
-        if (!serverData || (cloudTime && (!serverTime || cloudTime > serverTime))) {
+  // 2.2 Optional Firestore check ONLY if neither server API nor static app-data.json responded
+  if (!serverData) {
+    try {
+      const cloudDoc = await getDoc(doc(db, "appData", "main"));
+      if (cloudDoc.exists()) {
+        const cData = cloudDoc.data();
+        if (cData && (cData.salonInfo || cData.gallery || cData.services || cData.topics)) {
           serverData = cData as Partial<CompleteAppData>;
         }
       }
+    } catch (err) {
+      console.warn("Firestore read note (server disk used):", err);
     }
-  } catch (err) {
-    console.warn("Firestore read note (server disk used):", err);
   }
 
   // 3. Fallbacks: IndexedDB or local storage
@@ -305,10 +304,14 @@ export async function loadInitialAppData(): Promise<CompleteAppData> {
     salonInfo: finalSalonInfo,
     topics: finalTopics,
     gallery: finalGallery,
-    services: finalServices
+    services: finalServices,
+    updatedAt: serverData?.updatedAt || new Date().toISOString()
   };
 
   inMemoryAppData = result;
+  if (serverData?.updatedAt && (!lastSavedLocalIso || serverData.updatedAt > lastSavedLocalIso)) {
+    lastSavedLocalIso = serverData.updatedAt;
+  }
 
   // Cache locally in IndexedDB & localStorage for fast offline boot
   idbSet(KEYS.SALON_INFO, finalSalonInfo).catch(() => {});
