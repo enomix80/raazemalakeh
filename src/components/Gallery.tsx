@@ -135,13 +135,20 @@ export default function Gallery({
     return list;
   }, [activeTopic, gallery]);
 
-  // Auto-scroll active thumbnail into view
+  // Auto-scroll active thumbnail horizontally inside thumbnails container ONLY (never scroll page vertically)
   useEffect(() => {
-    if (thumbnailsRef.current) {
-      const activeEl = thumbnailsRef.current.children[currentImageIndex] as HTMLElement | undefined;
-      if (activeEl) {
-        activeEl.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
-      }
+    const container = thumbnailsRef.current;
+    if (!container) return;
+    const activeEl = container.children[currentImageIndex] as HTMLElement | undefined;
+    if (activeEl) {
+      const containerRect = container.getBoundingClientRect();
+      const activeRect = activeEl.getBoundingClientRect();
+      const scrollOffset =
+        activeRect.left -
+        containerRect.left -
+        containerRect.width / 2 +
+        activeRect.width / 2;
+      container.scrollBy({ left: scrollOffset, behavior: "smooth" });
     }
   }, [currentImageIndex]);
 

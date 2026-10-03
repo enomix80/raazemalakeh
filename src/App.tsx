@@ -36,6 +36,10 @@ export default function App() {
 
   // Load state from IndexedDB (with synchronous localStorage initial hydration for instant render)
   useEffect(() => {
+    if (!window.location.hash || window.location.hash === "#") {
+      window.scrollTo({ top: 0, left: 0, behavior: "instant" as ScrollBehavior });
+    }
+
     // 1. Instant hydration from localStorage if available
     try {
       const savedInfo = localStorage.getItem("queen_salon_info");

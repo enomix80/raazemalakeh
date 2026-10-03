@@ -586,14 +586,15 @@ export default function AdminPanel({
   };
 
   // Direct Cover Upload from PC/Phone with automatic compression & server/cloud upload
-  const handleDirectCoverUpload = async (file: File) => {
+  const handleDirectCoverUpload = async (file: File, targetCategory?: string) => {
+    const categoryToUse = targetCategory || selectedTopicCategory;
     try {
       setIsUploading(true);
       setUploadStatusMessage("در حال آپلود و ذخیره مستقیم عکس کاور تاپیک بر روی سرور...");
-      const uploaded = await uploadImageDirectly(file, "topics", `topic-${currentTopic?.category || "cover"}`, 1280, 1280, 0.82);
+      const uploaded = await uploadImageDirectly(file, "topics", `topic-${categoryToUse || "cover"}`, 1280, 1280, 0.82);
 
       const updatedTopics = topics.map((t) => {
-        if (t.category === selectedTopicCategory || t.id === currentTopic?.id) {
+        if (t.category === categoryToUse || (!targetCategory && t.id === currentTopic?.id)) {
           return {
             ...t,
             coverImage: uploaded.url
@@ -612,7 +613,8 @@ export default function AdminPanel({
       });
       setIsUploading(false);
       setUploadStatusMessage("");
-      alert("✅ عکس کاور تاپیک با موفقیت آپلود شد و بلافاصله برای تمامی بازدیدکنندگان فعال گردید!");
+      setActionStatusToast("✅ عکس کاور تاپیک با موفقیت آپلود و ذخیره شد!");
+      setTimeout(() => setActionStatusToast(""), 3500);
     } catch (err: any) {
       setIsUploading(false);
       setUploadStatusMessage("");
@@ -621,9 +623,10 @@ export default function AdminPanel({
   };
 
   // Remove Cover Image from Active Topic
-  const handleRemoveCover = async () => {
+  const handleRemoveCover = async (targetCategory?: string) => {
+    const categoryToUse = targetCategory || selectedTopicCategory;
     const updatedTopics = topics.map((t) => {
-      if (t.category === selectedTopicCategory || t.id === currentTopic?.id) {
+      if (t.category === categoryToUse || (!targetCategory && t.id === currentTopic?.id)) {
         return {
           ...t,
           coverImage: ""
@@ -708,8 +711,9 @@ export default function AdminPanel({
   };
 
   // Direct upload for an empty slot (1 to 20)
-  const handleDirectSlotUpload = async (file: File) => {
-    const currentTopicPhotos = gallery.filter((g) => g.category === selectedTopicCategory);
+  const handleDirectSlotUpload = async (file: File, targetCategory?: string) => {
+    const categoryToUse = targetCategory || selectedTopicCategory;
+    const currentTopicPhotos = gallery.filter((g) => g.category === categoryToUse);
     if (currentTopicPhotos.length >= MAX_PHOTOS_PER_TOPIC) {
       alert(`⚠️ سقف ظرفیت ۲۰ تصویر برای این تاپیک پر شده است.`);
       return;
@@ -726,11 +730,12 @@ export default function AdminPanel({
         1280,
         0.82
       );
-      const topicTitle = currentTopic?.title || selectedTopicCategory;
+      const topicObj = topics.find((t) => t.category === categoryToUse);
+      const topicTitle = topicObj?.title || categoryToUse;
       const newItem: GalleryItem = {
         id: "g-" + Date.now().toString(),
         title: `نمونه کار ${topicTitle} (شماره ${currentTopicPhotos.length + 1})`,
-        category: selectedTopicCategory,
+        category: categoryToUse,
         image: uploaded.url,
         description: "",
         createdAt: new Date().toISOString()
@@ -746,7 +751,8 @@ export default function AdminPanel({
       });
       setIsUploading(false);
       setUploadStatusMessage("");
-      alert(`✅ تصویر در جایگاه شماره ${currentTopicPhotos.length + 1} از ۲۰ با موفقیت آپلود و ذخیره شد!`);
+      setActionStatusToast(`✅ تصویر در جایگاه شماره ${currentTopicPhotos.length + 1} از ۲۰ با موفقیت آپلود و ذخیره شد!`);
+      setTimeout(() => setActionStatusToast(""), 3500);
     } catch (err: any) {
       setIsUploading(false);
       setUploadStatusMessage("");
@@ -811,9 +817,11 @@ export default function AdminPanel({
   };
 
   // Delete all sample photos in current active topic
-  const handleDeleteAllPhotosInTopic = async () => {
-    const topicTitle = currentTopic?.title || selectedTopicCategory;
-    const updatedGallery = gallery.filter((g) => g.category !== selectedTopicCategory);
+  const handleDeleteAllPhotosInTopic = async (targetCategory?: string) => {
+    const categoryToUse = targetCategory || selectedTopicCategory;
+    const topicObj = topics.find((t) => t.category === categoryToUse);
+    const topicTitle = topicObj?.title || categoryToUse;
+    const updatedGallery = gallery.filter((g) => g.category !== categoryToUse);
     onUpdateGallery(updatedGallery);
     await saveAllAppData({
       gallery: updatedGallery,
@@ -2523,7 +2531,7 @@ export default function AdminPanel({
                                           const file = e.target.files?.[0];
                                           if (file) {
                                             setSelectedTopicCategory(sec.category);
-                                            handleDirectCoverUpload(file);
+                                            handleDirectCoverUpload(file, sec.category);
                                           }
                                           e.target.value = "";
                                         }}
@@ -2534,7 +2542,7 @@ export default function AdminPanel({
                                         type="button"
                                         onClick={() => {
                                           setSelectedTopicCategory(sec.category);
-                                          handleRemoveCover();
+                                          handleRemoveCover(sec.category);
                                         }}
                                         className="text-[10px] text-red-600 hover:text-red-700 font-black bg-red-50 hover:bg-red-100 px-2.5 py-1 rounded-lg transition-colors cursor-pointer flex items-center gap-1 border border-red-200"
                                       >
@@ -2566,7 +2574,7 @@ export default function AdminPanel({
                                             const file = e.target.files?.[0];
                                             if (file) {
                                               setSelectedTopicCategory(sec.category);
-                                              handleDirectSlotUpload(file);
+                                              handleDirectSlotUpload(file, sec.category);
                                             }
                                             e.target.value = "";
                                           }}
@@ -2577,7 +2585,7 @@ export default function AdminPanel({
                                           type="button"
                                           onClick={() => {
                                             setSelectedTopicCategory(sec.category);
-                                            handleDeleteAllPhotosInTopic();
+                                            handleDeleteAllPhotosInTopic(sec.category);
                                           }}
                                           className="text-[10px] text-red-600 hover:text-red-700 font-black bg-red-50 hover:bg-red-100 px-2 py-0.5 rounded-md cursor-pointer flex items-center gap-1 border border-red-200 transition-colors"
                                           title="حذف کلیه تصاویر این لاین"
