@@ -281,7 +281,7 @@ function scanAssetsFolder() {
     const assetUrl = `./assets/services/${file}`;
     if (serviceId) {
       const idx = currentServices.findIndex((s) => s.id === serviceId);
-      if (idx >= 0) {
+      if (idx >= 0 && !currentServices[idx].image) {
         currentServices[idx].image = assetUrl;
       }
     }
@@ -368,12 +368,18 @@ app.post("/api/upload-image", (req, res) => {
       }
     }
 
-    // Also mirror to root /assets/folder if target was in public/assets
+    // Also mirror to root /assets/folder, dist/assets/folder, and docs/assets/folder if target was in public/assets
     if (folder) {
-      const rootAssetDir = path.resolve(__dirname, "assets", folder);
-      if (fs.existsSync(rootAssetDir)) {
+      const sanitizedFolder = folder.replace(/[^a-zA-Z0-9_-]/g, "");
+      const assetMirrorDirs = [
+        path.resolve(__dirname, "assets", sanitizedFolder),
+        path.resolve(__dirname, "dist/assets", sanitizedFolder),
+        path.resolve(__dirname, "docs/assets", sanitizedFolder)
+      ];
+      for (const dir of assetMirrorDirs) {
         try {
-          fs.writeFileSync(path.join(rootAssetDir, generatedFileName), Buffer.from(base64Data, "base64"));
+          if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+          fs.writeFileSync(path.join(dir, generatedFileName), Buffer.from(base64Data, "base64"));
         } catch {}
       }
     }

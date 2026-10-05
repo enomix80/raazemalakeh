@@ -20,7 +20,7 @@ const KEYS = {
   SALON_INFO: "queen_salon_info",
   TOPICS: "queen_salon_topics_v4",
   GALLERY: "queen_salon_gallery_v4",
-  SERVICES: "queen_salon_services_v4",
+  SERVICES: "queen_salon_services_v5",
   ADMIN_CREDENTIALS: "queen_salon_admin_credentials"
 } as const;
 
@@ -405,23 +405,102 @@ export async function saveAllAppData(data: {
 }
 
 /**
- * Real-time subscription to cloud Firestore:
+ * Real-time subscription to Server Disk (/api/app-data) & Cloud Firestore:
  * Any visitor anywhere in the world will immediately receive live updates
  * whenever the admin changes an image or text!
  */
 export function subscribeToRealtimeAppData(onUpdate: (data: CompleteAppData) => void): () => void {
+  // 1. Live Server Polling (every 4 seconds) so every visitor on the link immediately gets updates saved to server disk
+  const pollInterval = setInterval(async () => {
+    try {
+      const res = await fetch(`/api/app-data?t=${Date.now()}`, { cache: "no-store" });
+      if (!res.ok) return;
+      const json = await res.json();
+      const sData = json?.data;
+      if (!sData || !sData.updatedAt) return;
+
+      // Only trigger update if server updatedAt is strictly newer than current state
+      const currentIso = inMemoryAppData.updatedAt || lastSavedLocalIso || "";
+      if (currentIso && sData.updatedAt <= currentIso) {
+        return;
+      }
+
+      lastSavedLocalIso = sData.updatedAt;
+
+      const finalSalonInfo: SalonInfo = {
+        ...SALON_INFO,
+        ...(sData.salonInfo || {}),
+        backgroundBannerUrl: resolveImageUrl(
+          sData.salonInfo?.backgroundBannerUrl || SALON_INFO.backgroundBannerUrl,
+          "./assets/branding/top_banner.jpg"
+        ),
+        topSmallBannerUrl: resolveImageUrl(
+          sData.salonInfo?.topSmallBannerUrl || sData.salonInfo?.logoUrl || SALON_INFO.topSmallBannerUrl,
+          "./assets/branding/logo.jpg"
+        ),
+        heroBannerUrl: resolveImageUrl(
+          sData.salonInfo?.heroBannerUrl || SALON_INFO.heroBannerUrl,
+          "./assets/branding/hero.jpg"
+        ),
+        logoUrl: resolveImageUrl(
+          sData.salonInfo?.logoUrl || sData.salonInfo?.topSmallBannerUrl || SALON_INFO.logoUrl,
+          "./assets/branding/logo.jpg"
+        )
+      };
+
+      const rawTopics = Array.isArray(sData.topics) && sData.topics.length > 0 ? sData.topics : inMemoryAppData.topics;
+      const finalTopics: GalleryTopic[] = rawTopics.map((t: any) => ({
+        ...t,
+        coverImage: resolveImageUrl(t.coverImage)
+      }));
+
+      const rawGallery = Array.isArray(sData.gallery) ? sData.gallery : inMemoryAppData.gallery;
+      const finalGallery: GalleryItem[] = rawGallery.map((g: any) => ({
+        ...g,
+        image: resolveImageUrl(g.image)
+      }));
+
+      const rawServices = Array.isArray(sData.services) && sData.services.length > 0 ? sData.services : inMemoryAppData.services;
+      const finalServices: Service[] = rawServices.map((s: any) => ({
+        ...s,
+        image: resolveImageUrl(s.image)
+      }));
+
+      const complete: CompleteAppData = {
+        salonInfo: finalSalonInfo,
+        topics: finalTopics,
+        gallery: finalGallery,
+        services: finalServices,
+        updatedAt: sData.updatedAt
+      };
+
+      inMemoryAppData = complete;
+      idbSet(KEYS.SALON_INFO, finalSalonInfo).catch(() => {});
+      idbSet(KEYS.TOPICS, finalTopics).catch(() => {});
+      idbSet(KEYS.GALLERY, finalGallery).catch(() => {});
+      idbSet(KEYS.SERVICES, finalServices).catch(() => {});
+      onUpdate(complete);
+    } catch {
+      // ignore transient network errors
+    }
+  }, 4000);
+
+  let unsubFirestore = () => {};
   try {
-    const unsub = onSnapshot(
+    unsubFirestore = onSnapshot(
       doc(db, "appData", "main"),
       (snapshot) => {
         if (!snapshot.exists()) return;
         const cData = snapshot.data();
         if (!cData) return;
 
-        // If local update is newer than or equal to incoming Firestore snapshot, do not overwrite local changes
-        if (cData.updatedAt && lastSavedLocalIso && cData.updatedAt <= lastSavedLocalIso) {
+        // Only apply Firestore snapshot if it has an updatedAt strictly newer than our server/local state
+        const currentIso = inMemoryAppData.updatedAt || lastSavedLocalIso || "";
+        if (!cData.updatedAt || (currentIso && cData.updatedAt <= currentIso)) {
           return;
         }
+
+        lastSavedLocalIso = cData.updatedAt;
 
         const finalSalonInfo: SalonInfo = {
           ...SALON_INFO,
@@ -466,7 +545,8 @@ export function subscribeToRealtimeAppData(onUpdate: (data: CompleteAppData) => 
           salonInfo: finalSalonInfo,
           topics: finalTopics,
           gallery: finalGallery,
-          services: finalServices
+          services: finalServices,
+          updatedAt: cData.updatedAt
         };
 
         inMemoryAppData = complete;
@@ -476,9 +556,12 @@ export function subscribeToRealtimeAppData(onUpdate: (data: CompleteAppData) => 
         // Silently handle offline/network disconnection without spamming console
       }
     );
-
-    return unsub;
   } catch (err) {
-    return () => {};
+    // ignore
   }
+
+  return () => {
+    clearInterval(pollInterval);
+    unsubFirestore();
+  };
 }
