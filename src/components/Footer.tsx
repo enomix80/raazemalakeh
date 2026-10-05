@@ -143,7 +143,7 @@ export default function Footer({ salonInfo, onAdminClick, logoUrl }: FooterProps
 
             {/* Google Maps & Neshan Routing - Interactive Minimap Bento Card */}
             <div className="pt-4 space-y-3">
-              <span className="block text-xs font-black text-[#2C1E14]/70">مسیریابی هوشمند ملوکانه روی نقشه:</span>
+              <span className="block text-xs font-black text-[#2C1E14]/70">مسیریابی هوشمند راز ملکه روی نقشه:</span>
               
               <div className="relative aspect-[4/3] w-full max-w-sm rounded-3xl overflow-hidden border border-[#06808B]/20 bg-white/45 shadow-lg group/map">
                 {/* Simulated map grid overlay */}
