@@ -15,7 +15,6 @@
     <script type="module" src="/src/main.tsx"></script>
     <script type="module">
       // GitHub Pages / Static Hosting Fallback
-      // If served directly without Vite dev server and root remains unmounted, load pre-bundled assets/main.js
       window.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => {
           const rootEl = document.getElementById('root');
@@ -23,10 +22,10 @@
             const fallbackScript = document.createElement('script');
             fallbackScript.type = 'module';
             fallbackScript.crossOrigin = 'anonymous';
-            fallbackScript.src = './assets/main.js?v=' + Date.now();
+            fallbackScript.src = './assets/main.js?v=20261005-2';
             document.body.appendChild(fallbackScript);
           }
-        }, 200);
+        }, 150);
       });
     </script>
   </body>
