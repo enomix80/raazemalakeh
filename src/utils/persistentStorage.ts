@@ -20,7 +20,7 @@ const KEYS = {
   SALON_INFO: "queen_salon_info",
   TOPICS: "queen_salon_topics_v4",
   GALLERY: "queen_salon_gallery_v4",
-  SERVICES: "queen_salon_services_v3",
+  SERVICES: "queen_salon_services_v4",
   ADMIN_CREDENTIALS: "queen_salon_admin_credentials"
 } as const;
 

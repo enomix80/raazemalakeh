@@ -51,7 +51,7 @@ export default function App() {
       const savedGallery = localStorage.getItem("queen_salon_gallery_v4");
       if (savedGallery) setGallery(JSON.parse(savedGallery));
 
-      const savedServices = localStorage.getItem("queen_salon_services_v3");
+      const savedServices = localStorage.getItem("queen_salon_services_v4");
       if (savedServices) setServices(JSON.parse(savedServices));
     } catch {
       // ignore

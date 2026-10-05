@@ -12,7 +12,7 @@ export const INITIAL_SERVICES: Service[] = [
     title: "رنگ و لایت",
     category: "رنگ و مو",
     description: "انواع تکنیک‌های آمبره، سامبره، بالیاژ، لایت‌های خطی و دکلره‌های بدون آسیب با مرغوب‌ترین متریال جهانی.",
-    image: "./assets/services/color.jpg",
+    image: "./assets/services/service-1-1791178564809.jpg",
     price: ""
   },
   {
@@ -20,7 +20,7 @@ export const INITIAL_SERVICES: Service[] = [
     title: "کوتاهی",
     category: "کوتاهی و استایل",
     description: "کوپ‌های مدرن، کلاسیک و ژورنالی مطابق با ژورنال‌های روز دنیا همراه با براشینگ و سشوار تخصصی.",
-    image: "./assets/services/haircut.jpg",
+    image: "./assets/services/service-2-1791178618409.jpg",
     price: ""
   },
   {
@@ -36,7 +36,7 @@ export const INITIAL_SERVICES: Service[] = [
     title: "احیا و کراتین",
     category: "احیا و کراتین",
     description: "صافی صد در صد و احیای عمیق موهای آسیب‌دیده، بوتاکس‌تراپی، پروتئین‌تراپی و کراتینه تضمینی مو.",
-    image: "./assets/services/keratin.jpg",
+    image: "./assets/services/service-4-1791178393769.jpg",
     price: ""
   },
   {
@@ -44,15 +44,15 @@ export const INITIAL_SERVICES: Service[] = [
     title: "خدمات ناخن",
     category: "ناخن و پدیکور",
     description: "کاشت پودر، ژل، لمینت، کاور ملوکانه، ژلیش دست و پا به همراه طراحی‌های ظریف هنری روز دنیا.",
-    image: "./assets/services/nails.jpg",
+    image: "./assets/services/service-5-1791178604480.jpg",
     price: ""
   },
   {
     id: "6",
-    title: "فشیال پوست",
+    title: "فیشال پوست",
     category: "پوست و فشیال",
     description: "پاکسازی عمیق پوست، هیدرودرمی، لایه‌برداری تخصصی، جوانسازی و رفع خستگی صورت با مواد اورجینال.",
-    image: "./assets/services/skin.jpg",
+    image: "./assets/services/service-6-1791178450408.jpg",
     price: ""
   },
   {
@@ -60,7 +60,7 @@ export const INITIAL_SERVICES: Service[] = [
     title: "میکاپ و شینیون",
     category: "عروس و میکاپ",
     description: "آرایش‌های ملایم، اروپایی و شیک متناسب با سلیقه شما به همراه شینیون‌های مدرن، خطی و مواج.",
-    image: "./assets/services/makeup.jpg",
+    image: "./assets/services/service-7-1791178515057.jpg",
     price: ""
   },
   {
@@ -68,7 +68,7 @@ export const INITIAL_SERVICES: Service[] = [
     title: "میکاپ شینیون تخصصی عروس",
     category: "عروس و میکاپ",
     description: "پکیج مجلل و VIP عروس با گریم کانتورینگ حرفه‌ای صورت، مژه‌گذاری دانه‌ای و پایداری تضمینی ۲۴ ساعته.",
-    image: "./assets/services/bridal.jpg",
+    image: "./assets/services/service-8-1791178581577.jpg",
     price: ""
   },
   {
@@ -76,7 +76,7 @@ export const INITIAL_SERVICES: Service[] = [
     title: "مژه و ابرو",
     category: "مژه و ابرو",
     description: "کاشت مژه موقت، اکستنشن تار به تار اسپایکی، والیوم و مگاوالیوم و لیفت و لمینت تخصصی با برترین متریال.",
-    image: "./assets/services/lashes.jpg",
+    image: "./assets/services/service-9-1791178433163.jpg",
     price: ""
   },
   {
@@ -84,7 +84,7 @@ export const INITIAL_SERVICES: Service[] = [
     title: "پدیکور و کفسابی",
     category: "ناخن و پدیکور",
     description: "کفسابی فوق حرفه‌ای جهت رفع کامل خشکی و ترک پا، کوکتل‌تراپی، اسکراب و ماساژ ریلکسی پا.",
-    image: "./assets/services/pedicure.jpg",
+    image: "./assets/services/service-10-1791178420524.jpg",
     price: ""
   },
   {
@@ -92,7 +92,7 @@ export const INITIAL_SERVICES: Service[] = [
     title: "بافت مو",
     category: "بافت و استایل",
     description: "انواع بافت‌های فانتزی شامل هلندی، آفریقایی، مکزیکی، کوئین و بافت با موهای رنگی اضافه.",
-    image: "./assets/services/braids.jpg",
+    image: "./assets/services/service-11-1791178547606.jpg",
     price: ""
   }
 ];
