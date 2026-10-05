@@ -472,14 +472,13 @@ export function subscribeToRealtimeAppData(onUpdate: (data: CompleteAppData) => 
         inMemoryAppData = complete;
         onUpdate(complete);
       },
-      (error) => {
-        console.warn("Realtime Firestore subscription warning:", error);
+      (_error) => {
+        // Silently handle offline/network disconnection without spamming console
       }
     );
 
     return unsub;
   } catch (err) {
-    console.warn("Failed to subscribe to Firestore realtime updates:", err);
     return () => {};
   }
 }

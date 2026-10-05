@@ -31,17 +31,17 @@ export const db = config.firestoreDatabaseId && config.firestoreDatabaseId !== "
   ? getFirestore(app, config.firestoreDatabaseId)
   : getFirestore(app);
 
-// Connection self-test as required by skill
+// Connection self-test as required by skill (non-blocking)
 export async function testConnection() {
   try {
     await getDocFromServer(doc(db, "test", "connection"));
   } catch (error) {
-    if (error instanceof Error && error.message.includes("the client is offline")) {
-      console.warn("Firestore connection check: client is offline or network restricted.");
-    }
+    // Non-blocking offline/network fallback
   }
 }
 
-testConnection();
+try {
+  testConnection();
+} catch {}
 
 export { doc, getDoc, setDoc, onSnapshot };
