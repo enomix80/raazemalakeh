@@ -14,19 +14,27 @@
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
     <script type="module">
-      // GitHub Pages / Static Hosting Fallback
-      window.addEventListener('DOMContentLoaded', () => {
-        setTimeout(() => {
-          const rootEl = document.getElementById('root');
-          if (rootEl && rootEl.children.length === 0) {
-            const fallbackScript = document.createElement('script');
-            fallbackScript.type = 'module';
-            fallbackScript.crossOrigin = 'anonymous';
-            fallbackScript.src = './assets/main.js?v=20261005-2';
-            document.body.appendChild(fallbackScript);
-          }
-        }, 150);
-      });
+      // GitHub Pages / Static Hosting Loader
+      if (window.location.hostname.endsWith('.github.io')) {
+        const s = document.createElement('script');
+        s.type = 'module';
+        s.crossOrigin = 'anonymous';
+        s.src = './assets/main.js?v=20261006';
+        document.body.appendChild(s);
+      } else {
+        window.addEventListener('DOMContentLoaded', () => {
+          setTimeout(() => {
+            const rootEl = document.getElementById('root');
+            if (rootEl && rootEl.children.length === 0) {
+              const fallbackScript = document.createElement('script');
+              fallbackScript.type = 'module';
+              fallbackScript.crossOrigin = 'anonymous';
+              fallbackScript.src = './assets/main.js?v=20261006';
+              document.body.appendChild(fallbackScript);
+            }
+          }, 150);
+        });
+      }
     </script>
   </body>
 </html>
